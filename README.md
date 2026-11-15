@@ -72,3 +72,9 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - 2026-11-15 15:27 operator 0.1.36 deployed（woowtechcluster7；F6 guard OK）。
 - 2026-11-15 15:31 平台 release 安裝（PG 在 woowtechcluster2；--wait 因 PVC Pending 超時 → 狀態 failed，見第 6 步註）。
 - 2026-11-15 15:40 platform-init Job 開跑（woowtechcluster4，`-data` PV 綁在該節點）。
+- 2026-11-15 16:05 platform-init 完成（80 模組、overlay 套 29 個範本、marker 與 admin 寫入）；web／cron 起來，公開網址 200。
+- 2026-11-15 16:17 第一次手動備份成功（backup PVC 因此綁定，helm --wait 才會過）。
+- 2026-11-15 16:19–16:50 驗收：開服務依序踩到 訂閱日記帳未設、operator 30 秒逾時、Docker Hub IPv6 偶發、Bitnami NetworkPolicy 被 guard 擋；逐一修掉後 PostgreSQL 通過（lab-pg-4 留著當樣本）。
+- 2026-11-15 16:39 overlay 改版號後先滾動 web → upgrade-gate 擋（DB 版本落後）→ web 停約 2 分；已改 `tools/lab-overlay-update.sh` 先 -u 再滾動。
+- 2026-11-15 16:54–17:20 n8n 通過（公開網址 200、刪除後 tunnel 規則／DNS／release 清掉、PVC 標 orphaned）；Redis 通過；Odoo 第一次排到 TUF（pod 網路壞）失敗 → tenantAvoidNodes 後通過（公開網址 200）。
+- 2026-11-15 17:30 工作區 1 的 PVC 配額（10）被保留期內的測試資料吃滿 → LiteLLM／EMQX 改在工作區 2（lab-acceptance-2）測。
