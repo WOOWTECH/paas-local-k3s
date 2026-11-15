@@ -22,7 +22,30 @@ GHCR_REPO_DIR = "woowtech/"
 # 第一階段只開這 6 個（使用者 2026-11-15 決定）；其餘範本 is_hidden=True 等第二階段。
 # postgresql／redis 在上游是 is_active=False（#562：Bitnami 2025-08 搬遷後預設映像只剩 :latest，上游不釘）；
 # lab 依使用者決定開啟，映像沿用 chart 預設的 docker.io/bitnami/*:latest（浮動，已知風險）。
-LAB_VISIBLE_SLUGS = ("postgresql", "redis", "n8n", "odoo", "litellm", "emqx")
+LAB_VISIBLE_SLUGS = ("postgresql", "redis", "n8n", "odoo", "litellm", "emqx",
+                     # 第二批（使用者 2026-11-15 晚：「再去上架實作實測 Pi agent Hermes od omnigent」）
+                     "pi-agent", "hermes-agent", "open-design", "omnigent")
+
+# chart 位置例外：GHCR 上 charts/omnigent 已是別的專案的「公開」package，WOOW 的 omnigent chart 推進去會變公開
+# → 改放私有的 paas-charts/omnigent（tools/mirror-charts.sh 同步）。
+CHART_PATH_OVERRIDES = {
+    "omnigent": "oci://ghcr.io/woowtech/paas-charts/omnigent",
+}
+
+# lab 叢集參數（只有這個叢集成立的值）：kube-router 在 DNAT 之後比對 egress，console／omnigent server 連 API
+# 要放行 apiserver 真實位址（本機 = 筆電節點 192.168.2.10:6443），不能只有 ClusterIP。
+LAB_APISERVER_CIDRS = "10.43.0.1/32,192.168.2.10/32"
+
+# 方案規格（只改 cs_*，價格／名稱不動）：平台把方案 RAM 當 limits、一半當 requests（_apply_plan_spec_overlay）。
+# pi-agent 方案 8GB → requests 4Gi，本機 4GB 節點（可配置約 3.7GiB）永遠排不上；omnigent 的 runner 會拿 8Gi limits。
+# ⚠ 這些方案在上游是 noupdate=1：別的模組用 XML <record> 覆寫在 -u 時會被略過（2026-11-15 實測），
+#   所以用 Python 寫；上游 -u 也不會洗回去。
+LAB_PLAN_SPECS = {
+    "woow_paas_platform.plan_pi_agent_monthly": {"cs_ram_gb": 3.0},
+    "woow_paas_platform.plan_pi_agent_yearly": {"cs_ram_gb": 3.0},
+    "woow_paas_platform.plan_omnigent_monthly": {"cs_ram_gb": 3.0, "cs_vcpu": 2},
+    "woow_paas_platform.plan_omnigent_yearly": {"cs_ram_gb": 3.0, "cs_vcpu": 2},
+}
 
 # chart 預設值裡指向 JCR、但範本 helm_default_values 沒覆寫的映像（2026-11-15 實查 chart 0.2.26/0.2.27、litellm 0.3.16、emqx 0.1.11）。
 # 只補 registry／repository，tag／digest 沿用 chart 預設（與 tools/images.txt 複製到 ghcr 的同一顆）。
@@ -57,6 +80,12 @@ TEMPLATE_VALUE_FIXES = {
     "postgresql": {"primary": {"networkPolicy": {"enabled": False}},
                    "readReplicas": {"networkPolicy": {"enabled": False}}},
     "redis": {"networkPolicy": {"enabled": False}},
+    # 本機可用節點都是 4GB（可配置約 3.7GiB）：範本原值 requests 2Gi／limits 8Gi 排得上但會把整台吃爆，
+    # 壓到 requests 1Gi／limits 3Gi（這兩個範本的方案沒有 cs_* 規格，平台不會再覆寫）。
+    "open-design": {"resources": {"requests": {"cpu": "500m", "memory": "1Gi"},
+                                  "limits": {"cpu": "2", "memory": "3Gi"}}},
+    "hermes-agent": {"agent": {"resources": {"requests": {"cpu": "250m", "memory": "1Gi"},
+                                             "limits": {"cpu": "2", "memory": "3Gi"}}}},
 }
 
 
@@ -99,6 +128,8 @@ def lab_transform(slug, chart_name, values):
     new_chart = chart_name
     if (chart_name or "").startswith(JCR_CHART_PREFIX):
         new_chart = GHCR_CHART_PREFIX + chart_name[len(JCR_CHART_PREFIX):]
+    if slug in CHART_PATH_OVERRIDES and (new_chart or "").startswith(GHCR_CHART_PREFIX):
+        new_chart = CHART_PATH_OVERRIDES[slug]
     new_values = _rewrite(json.loads(json.dumps(values)))
     if slug in LAB_VISIBLE_SLUGS:
         new_values = _apply_chart_default_fixes(new_chart, new_values)
@@ -158,4 +189,27 @@ class CloudAppTemplateLab(models.Model):
             if vals:
                 company.write(vals)
             _logger.info("woow_paas_platform_lab: billing journals for company %s: %s", company.id, vals or "already set")
+        return True
+
+    @api.model
+    def _lab_setup_cluster_params(self):
+        """lab 叢集專屬的 ir.config_parameter（正式站由 ops 各自設定，不進上游 seed）。"""
+        icp = self.env["ir.config_parameter"].sudo()
+        if icp.get_param("woow_paas_platform.apiserver_cidrs") != LAB_APISERVER_CIDRS:
+            icp.set_param("woow_paas_platform.apiserver_cidrs", LAB_APISERVER_CIDRS)
+            _logger.info("woow_paas_platform_lab: apiserver_cidrs set to %s", LAB_APISERVER_CIDRS)
+        return True
+
+    @api.model
+    def _lab_setup_plans(self):
+        changed = []
+        for xmlid, vals in LAB_PLAN_SPECS.items():
+            plan = self.env.ref(xmlid, raise_if_not_found=False)
+            if not plan:
+                continue
+            diff = {k: v for k, v in vals.items() if plan[k] != v}
+            if diff:
+                plan.sudo().write(diff)
+                changed.append(xmlid.split(".")[-1])
+        _logger.info("woow_paas_platform_lab: plan specs adjusted: %s", changed or "already set")
         return True

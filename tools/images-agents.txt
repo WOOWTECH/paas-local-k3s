@@ -1,0 +1,6 @@
+# 第二批（2026-11-15 晚）：pi-agent／hermes-agent／open-design 三個 agent 範本的映像（digest 照映像內 seed 的釘選）
+# omnigent 的兩顆（omnigent-server-kubernetes、omnigent-host）GHCR 上已有同 digest 的公開 package，不用複製。
+jcr-prod.woowtech.io/woow-paas-docker-local/pi-agent:20261101.2318@sha256:596251bb3bd915ffa17706c12b13c354eacba73c96c48e3c1aed56a43e9e10df ghcr.io/woowtech/pi-agent:20261101.2318
+jcr-prod.woowtech.io/woow-paas-docker-local/hermes-agent:20261025.0421@sha256:39718ca149934e1c4da240a5f41b53d45e0d5b62dba508b79c32fb0ef1aaf0f0 ghcr.io/woowtech/hermes-agent:20261025.0421
+jcr-prod.woowtech.io/woow-paas-docker-local/open-design-console:20260720.0332@sha256:2b91c4ad4a6a94d1735c8aa7a6c18ec05491d9db31fa455f5e5da1cbb52b0f92 ghcr.io/woowtech/open-design-console:20260720.0332
+jcr-prod.woowtech.io/woow-paas-docker-local/open-design:20261101.2319@sha256:6a7249cef812d41b0c8bf71557a2bf73e6779134f9d0161f65bed82adea2a03c ghcr.io/woowtech/open-design:20261101.2319

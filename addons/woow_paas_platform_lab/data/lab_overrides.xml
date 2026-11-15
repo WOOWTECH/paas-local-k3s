@@ -19,6 +19,12 @@
         <!-- 6 個範本的 chart／image 座標改指 ghcr.io；其餘範本 is_hidden -->
         <function model="woow_paas_platform.cloud_app_template" name="_lab_apply_registry_overrides"/>
 
+        <!-- 方案規格壓到 4GB 節點排得上（上游方案是 noupdate=1，只能用 Python 寫） -->
+        <function model="woow_paas_platform.cloud_app_template" name="_lab_setup_plans"/>
+
+        <!-- lab 叢集參數（apiserver 真實位址等） -->
+        <function model="woow_paas_platform.cloud_app_template" name="_lab_setup_cluster_params"/>
+
         <!-- 訂閱計費日記帳（fresh install 沒人設 → 開通服務會被拒） -->
         <function model="woow_paas_platform.cloud_app_template" name="_lab_setup_billing"/>
     </data>
