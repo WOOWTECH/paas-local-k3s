@@ -69,8 +69,13 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 ## 第三批：其餘正式站範本（13 個）＋停權頁
 - 映像 `tools/images-rest.txt`（15 顆，約 4.4GiB）；chart 7 支（`tools/mirror-charts.sh` 第三批）。
 - overlay 18.0.1.0.7–0.9：13 個上架；nextcloud 的 postgresql.image 改 ghcr；code-server／nextcloud 方案 → 3GB；
-  haos VM 記憶體 1280Mi 後仍因磁碟不足（HAOS 32GiB 虛擬磁碟，小節點最多剩 31GiB）跑不起來 → 先隱藏。
-- 正式站也隱藏的 6 個（ha-paas、ha-full-apporo、mcp-k8s、mcp-odoo-manage、mcp-opendesign、mcp-vk）維持隱藏。
+  haos 跑不起來（HAOS 32GiB 虛擬磁碟，小節點最多剩 31GiB）→ 11-16 依使用者指示移除：範本停用＋隱藏（overlay `LAB_REMOVED_SLUGS`，
+  API 也開不出來）、殘留 DataVolume 已刪、`images-rest.txt`／`mirror-charts.sh` 已拿掉；GHCR 上的 haos 映像與 chart 保留。
+- 正式站也隱藏的 6 個維持隱藏（原因查自 seed 註解與 Gitea PR）：mcp-odoo-manage（10-06 停售，只留 mcp-odoo；映像停在舊版）、
+  mcp-k8s 與 mcp-vk（10-09 下架 #1624；mcp-vk 另於 11-14 #2431／#2432 整個移除，下版平台映像就沒有）、
+  mcp-opendesign（10-15 內建進 Open Design #1741；本機 Open Design 的 /mcp-admin/ 可用）、
+  ha-paas（Woow App 的免費雲端 HA，由 App 呼叫 /api/ha-paas/provision 開通，兩層都隱藏；正式環境 0、staging 2）、
+  ha-full-apporo（9-25 封存，展示機改走 apporo.ai）。這 6 個的映像都沒有複製。
 - `infra/suspended-page/`：停權說明頁（operator 停權時把路由改指這裡）。
 - MCP 伺服器的管理員密碼存在 config.json（平台只能重設、不能自訂）→ 改在 MCP Admin 內 `PUT /api/settings/admin_password {"value": …}`（要 If-Match revision）；
   MCP Headscale 的管理介面沒有改密碼功能。Nextcloud 密碼由 app 自管（occ user:resetpassword；預設密碼政策最短 10 字）。
@@ -123,4 +128,4 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
   HA 完成初始設定；HAOS 磁碟不足 → 隱藏。測試用密碼依使用者要求設為同一組簡單密碼（MCP Headscale 除外）。
 - 2026-11-15 22:30–23:30 第四批：停權頁、Woow MCP gateway（租戶 token → MCP initialize／tools/list 5 個工具／list_workspaces 只回自己的工作區／撤銷後 401）、
   paas-netpol（無關 pod 連不到 operator、平台照常）；overlay 18.0.1.0.10。
-
+- 2026-11-16 HAOS 移除（overlay 18.0.1.0.11；殘留 DataVolume 刪除、cluster5 釋出 32GiB 的 PV）；報告改正正式站使用數（排除 staging）。

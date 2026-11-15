@@ -1,5 +1,6 @@
 # 第三批（2026-11-15 夜）：正式站對外開放、本機還沒搬的 13 個範本用到的映像（digest 照映像內 seed 的釘選）
 # 小的 MCP 映像排前面，先能測；headplane GHCR 上已有同 digest，不用複製；paas-postgres 第一批已複製。
+# haos 已移除（使用者 2026-11-16：目前不需要）；GHCR 上已複製的 ghcr.io/woowtech/haos 與 charts/haos 保留未刪。
 jcr-prod.woowtech.io/woow-paas-docker-local/odoo-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567@sha256:aed35228dc8866439f3952bc7f425411ffd6b6f50a8231b09ece2d250c8ca2b2 ghcr.io/woowtech/odoo-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567
 jcr-prod.woowtech.io/woow-paas-docker-local/n8n-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567@sha256:93d6599a2e8a644bfe6d28181a8c2449e80fe93a8c70dc9aab4c8aca97e9154c ghcr.io/woowtech/n8n-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567
 jcr-prod.woowtech.io/woow-paas-docker-local/hermes-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567@sha256:21f9d8a91133ab6f5169e4bc5b48989868da8345b992da5ca8ef18c68b2b3c60 ghcr.io/woowtech/hermes-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567
@@ -13,5 +14,4 @@ jcr-prod.woowtech.io/woow-paas-docker-local/tailscale:20261110.0208@sha256:d819a
 jcr-prod.woowtech.io/woow-paas-docker-local/redis:20261002.0258@sha256:ca0acbb137c1dc3339c8b147a58fd6f42775d4599327b50e7b116c23de501af2 ghcr.io/woowtech/redis:20261002.0258
 jcr-prod.woowtech.io/woow-paas-docker-local/nextcloud:20261002.0258@sha256:fc04168b172e09d9b9bc7665476a77898634fe2833f0a320366fb9eb0db491db ghcr.io/woowtech/nextcloud:20261002.0258
 jcr-prod.woowtech.io/woow-paas-docker-local/woowtech-ha-full:20260923.0804@sha256:3eaf22a5396877b7742a410809709450fc6f925c7e552fbd1bf6977be07598af ghcr.io/woowtech/woowtech-ha-full:20260923.0804
-jcr-prod.woowtech.io/woow-paas-docker-local/haos:18.1-20261018.0850@sha256:5e40d52660b8a618412d59223005d44fcd4d152fb5d2bf4ed8f309385741ff04 ghcr.io/woowtech/haos:18.1-20261018.0850
 jcr-prod.woowtech.io/woow-paas-docker-local/code-server:20261018.0107@sha256:84a37cddc190d8933678a4036b0c6609955122adcec48a147ced6e6693e2c561 ghcr.io/woowtech/code-server:20261018.0107

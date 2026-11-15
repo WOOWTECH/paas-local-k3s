@@ -27,11 +27,16 @@ LAB_VISIBLE_SLUGS = ("postgresql", "redis", "n8n", "odoo", "litellm", "emqx",
                      "pi-agent", "hermes-agent", "open-design", "omnigent",
                      # 第三批（使用者 2026-11-15 夜：「去搬剩下還沒搬過去的」）：正式站對外開放的其餘 13 個。
                      # 正式站也隱藏的 6 個（ha-paas、ha-full-apporo、mcp-k8s、mcp-odoo-manage、mcp-opendesign、mcp-vk）維持隱藏。
-                     # haos 已搬（chart／映像都在 GHCR）但本叢集跑不起來：HAOS 映像是 32GiB 虛擬磁碟，CDI 匯入要求節點剩餘空間
-                     # ≥ 32GiB，4GB 小節點的磁碟最多只剩 31GiB（2026-11-15 實測）。先隱藏，避免開通失敗留下 DataVolume；
-                     # 有足夠磁碟的節點（或清出空間）後把 "haos" 加回這裡、跑 tools/lab-overlay-update.sh 即可。
+                     # haos 已移除（見下方 LAB_REMOVED_SLUGS）。
                      "code-server", "ha-full", "headscale", "nextcloud", "tailscale",
                      "mcp-emqx", "mcp-headscale", "mcp-hermes", "mcp-litellm", "mcp-n8n", "mcp-nextcloud", "mcp-odoo")
+
+# 本機移除的範本：停用（is_active=False）＋隱藏，平台不列、API 也開不出來。範本是平台內建目錄的一筆（上游 seed
+# noupdate=0），刪掉的話下次 -u woow_paas_platform 會長回來，所以用停用代替刪除。
+# haos：使用者 2026-11-16「這個去移除，目前不需要」。之前跑不起來的原因：HAOS 映像是 32GiB 虛擬磁碟，CDI 匯入要求
+# 節點剩餘空間 ≥ 32GiB，4GB 小節點的磁碟最多只剩 31GiB（2026-11-15 實測）。殘留的 DataVolume 已刪。
+# 要加回：從這裡拿掉、把 "haos" 放回 LAB_VISIBLE_SLUGS、tools/images-rest.txt／mirror-charts.sh 補回，跑 tools/lab-overlay-update.sh。
+LAB_REMOVED_SLUGS = ("haos",)
 
 # chart 位置例外：GHCR 上 charts/omnigent 已是別的專案的「公開」package，WOOW 的 omnigent chart 推進去會變公開
 # → 改放私有的 paas-charts/omnigent（tools/mirror-charts.sh 同步）。
@@ -100,9 +105,6 @@ TEMPLATE_VALUE_FIXES = {
                                   "limits": {"cpu": "2", "memory": "3Gi"}}},
     "hermes-agent": {"agent": {"resources": {"requests": {"cpu": "250m", "memory": "1Gi"},
                                              "limits": {"cpu": "2", "memory": "3Gi"}}}},
-    # HAOS VM 範本是 2 核 4Gi：4GB 節點放不下。2Gi 時 virt-launcher 要 2428Mi（多約 380Mi 開銷），
-    # 其他測試服務跑著時沒有任何節點空得出來（2026-11-15 實測最大空間約 1.8Gi）→ 壓到 1280Mi（低於 HAOS 建議的 2GB，只夠開機與初始設定）
-    "haos": {"vm": {"memory": "1280Mi"}},
 }
 
 
@@ -182,6 +184,8 @@ class CloudAppTemplateLab(models.Model):
                 vals["is_hidden"] = want_hidden
             if t.slug in LAB_VISIBLE_SLUGS and not t.is_active:
                 vals["is_active"] = True
+            if t.slug in LAB_REMOVED_SLUGS and t.is_active:
+                vals["is_active"] = False
             if vals:
                 t.write(vals)
                 changed += 1
