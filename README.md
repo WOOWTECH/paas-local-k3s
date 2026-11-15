@@ -92,3 +92,7 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - 2026-11-15 17:35–17:45 LiteLLM、EMQX 在工作區 2 通過（公開網址皆 200）；6 個範本全部通過。
 - 2026-11-15 17:45 overlay 18.0.1.0.4（藏「探索更多服務」與工作區列表頁的兩張卡片）套用；瀏覽器以臨時帳號實看兩頁只剩「雲端服務」，臨時帳號已封存。
 - 現況：工作區 1 `lab-acceptance` 留一個 PostgreSQL（lab-pg-4）當樣本；工作區 2 `lab-acceptance-2` 為空；刪除的測試服務 PVC 依保留期（1／7 天）由 operator 自動清。
+- 2026-11-15 18:00–19:40 第二批 agent 範本：映像 5.1GiB 從 JCR 複製（約 50 分）；overlay 18.0.1.0.6；operator 改釘筆電。
+  在工作區 4 `lab-agents` 實測全部通過並保留：Omnigent（約 5 分；accounts 登入、錯誤密碼 401、server SA 只能在自己 ns 建 Job）、
+  Pi agent（約 12 分；匿名 401、管理員登入 200「Pi Web」）、Hermes（約 9 分；表單登入、console 200）、Open Design（約 12 分；匿名 401、登入 200、console 200）。
+  ⚠ 平台「重設管理員密碼」會讓 Pi agent 等 pod 重啟，重啟期間再按一次會被拒（服務正在完成更新）。
