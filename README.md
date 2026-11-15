@@ -55,6 +55,17 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - `paas-lab-tunnel.env`：`TUNNEL_ID=7ff55c23-213e-4077-b823-a7e1744078b8`、`TUNNEL_TOKEN`（建 tunnel 時取得）。
 - `paas-lab-platform.env`：OPERATOR_API_KEY、PLATFORM_ADMIN_PASSWORD、PLATFORM_PG_PASSWORD、PLATFORM_ODOO_PASSWORD、PLATFORM_MASTER_PASSWD（本機產生）。
 
+## 第二批：agent 範本（pi-agent／hermes-agent／open-design／omnigent）
+使用者 2026-11-15 晚要求上架並實測。做法與第一批相同，另外有這些 lab 專屬調整：
+- 映像：`tools/images-agents.txt`（`bash tools/mirror-images.sh tools/images-agents.txt`）。omnigent 兩顆映像 GHCR 上已有同 digest 的公開 package，不用複製。
+- chart：`tools/mirror-charts.sh` 已含四支。omnigent 推到私有 `oci://ghcr.io/woowtech/paas-charts`（`charts/omnigent` 是別的專案的公開 package）；
+  hermes-agent 的 `helm push` 會被 GHCR 回 500（說明含大量中文），改用 `tools/oci-push-chart-nodesc.py`（tgz 原封不動）。
+- 方案：pi-agent、omnigent 方案 8GB → 3GB（overlay `_lab_setup_plans`；上游方案 noupdate=1，XML 覆寫在 -u 時會被略過）。
+- 資源：open-design、hermes-agent requests 1Gi／limits 3Gi（overlay `TEMPLATE_VALUE_FIXES`）。
+- 叢集參數：`woow_paas_platform.apiserver_cidrs = 10.43.0.1/32,192.168.2.10/32`（console／omnigent server 連 API 要 node /32）。
+- operator 釘筆電：小節點（Pentium N3700）建新 namespace 38 秒，超過平台寫死的 30 秒；筆電 8.7 秒。
+- LLM：四個 agent 開通都不需要金鑰；要實際叫模型，租戶自己在服務裡填 OpenRouter／Anthropic 等金鑰，或在同工作區開 LiteLLM（平台會自動把網址注入 pi-agent／open-design／hermes）。
+
 ## 已知問題與 lab 專屬調整（2026-11-15 實測）
 - **TUF 節點的 pod 網路不通**：該節點上的 pod 連 CoreDNS 都逾時（叢集既有問題，需上機查 flannel／防火牆）。
   operator `config.tenantAvoidNodes` 讓租戶 pod 避開 TUF 與筆電；平台本身用 post-renderer 的 nodeAffinity 避開。
