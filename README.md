@@ -78,3 +78,6 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - 2026-11-15 16:39 overlay 改版號後先滾動 web → upgrade-gate 擋（DB 版本落後）→ web 停約 2 分；已改 `tools/lab-overlay-update.sh` 先 -u 再滾動。
 - 2026-11-15 16:54–17:20 n8n 通過（公開網址 200、刪除後 tunnel 規則／DNS／release 清掉、PVC 標 orphaned）；Redis 通過；Odoo 第一次排到 TUF（pod 網路壞）失敗 → tenantAvoidNodes 後通過（公開網址 200）。
 - 2026-11-15 17:30 工作區 1 的 PVC 配額（10）被保留期內的測試資料吃滿 → LiteLLM／EMQX 改在工作區 2（lab-acceptance-2）測。
+- 2026-11-15 17:35–17:45 LiteLLM、EMQX 在工作區 2 通過（公開網址皆 200）；6 個範本全部通過。
+- 2026-11-15 17:45 overlay 18.0.1.0.4（藏「探索更多服務」與工作區列表頁的兩張卡片）套用；瀏覽器以臨時帳號實看兩頁只剩「雲端服務」，臨時帳號已封存。
+- 現況：工作區 1 `lab-acceptance` 留一個 PostgreSQL（lab-pg-4）當樣本；工作區 2 `lab-acceptance-2` 為空；刪除的測試服務 PVC 依保留期（1／7 天）由 operator 自動清。
