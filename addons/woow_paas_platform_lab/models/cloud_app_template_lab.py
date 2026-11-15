@@ -27,7 +27,10 @@ LAB_VISIBLE_SLUGS = ("postgresql", "redis", "n8n", "odoo", "litellm", "emqx",
                      "pi-agent", "hermes-agent", "open-design", "omnigent",
                      # 第三批（使用者 2026-11-15 夜：「去搬剩下還沒搬過去的」）：正式站對外開放的其餘 13 個。
                      # 正式站也隱藏的 6 個（ha-paas、ha-full-apporo、mcp-k8s、mcp-odoo-manage、mcp-opendesign、mcp-vk）維持隱藏。
-                     "code-server", "ha-full", "haos", "headscale", "nextcloud", "tailscale",
+                     # haos 已搬（chart／映像都在 GHCR）但本叢集跑不起來：HAOS 映像是 32GiB 虛擬磁碟，CDI 匯入要求節點剩餘空間
+                     # ≥ 32GiB，4GB 小節點的磁碟最多只剩 31GiB（2026-11-15 實測）。先隱藏，避免開通失敗留下 DataVolume；
+                     # 有足夠磁碟的節點（或清出空間）後把 "haos" 加回這裡、跑 tools/lab-overlay-update.sh 即可。
+                     "code-server", "ha-full", "headscale", "nextcloud", "tailscale",
                      "mcp-emqx", "mcp-headscale", "mcp-hermes", "mcp-litellm", "mcp-n8n", "mcp-nextcloud", "mcp-odoo")
 
 # chart 位置例外：GHCR 上 charts/omnigent 已是別的專案的「公開」package，WOOW 的 omnigent chart 推進去會變公開

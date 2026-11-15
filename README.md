@@ -66,6 +66,16 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - operator 釘筆電：小節點（Pentium N3700）建新 namespace 38 秒，超過平台寫死的 30 秒；筆電 8.7 秒。
 - LLM：四個 agent 開通都不需要金鑰；要實際叫模型，租戶自己在服務裡填 OpenRouter／Anthropic 等金鑰，或在同工作區開 LiteLLM（平台會自動把網址注入 pi-agent／open-design／hermes）。
 
+## 第三批：其餘正式站範本（13 個）＋停權頁
+- 映像 `tools/images-rest.txt`（15 顆，約 4.4GiB）；chart 7 支（`tools/mirror-charts.sh` 第三批）。
+- overlay 18.0.1.0.7–0.9：13 個上架；nextcloud 的 postgresql.image 改 ghcr；code-server／nextcloud 方案 → 3GB；
+  haos VM 記憶體 1280Mi 後仍因磁碟不足（HAOS 32GiB 虛擬磁碟，小節點最多剩 31GiB）跑不起來 → 先隱藏。
+- 正式站也隱藏的 6 個（ha-paas、ha-full-apporo、mcp-k8s、mcp-odoo-manage、mcp-opendesign、mcp-vk）維持隱藏。
+- `infra/suspended-page/`：停權說明頁（operator 停權時把路由改指這裡）。
+- MCP 伺服器的管理員密碼存在 config.json（平台只能重設、不能自訂）→ 改在 MCP Admin 內 `PUT /api/settings/admin_password {"value": …}`（要 If-Match revision）；
+  MCP Headscale 的管理介面沒有改密碼功能。Nextcloud 密碼由 app 自管（occ user:resetpassword；預設密碼政策最短 10 字）。
+- Tailscale 要用平台的「VPN 配對」（`/vpn/options` → `/vpn/pair`）綁同工作區 Headscale，手動填 authKey 不會注入登入伺服器。
+
 ## 已知問題與 lab 專屬調整（2026-11-15 實測）
 - **TUF 節點的 pod 網路不通**：該節點上的 pod 連 CoreDNS 都逾時（叢集既有問題，需上機查 flannel／防火牆）。
   operator `config.tenantAvoidNodes` 讓租戶 pod 避開 TUF 與筆電；平台本身用 post-renderer 的 nodeAffinity 避開。
@@ -96,3 +106,7 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
   在工作區 4 `lab-agents` 實測全部通過並保留：Omnigent（約 5 分；accounts 登入、錯誤密碼 401、server SA 只能在自己 ns 建 Job）、
   Pi agent（約 12 分；匿名 401、管理員登入 200「Pi Web」）、Hermes（約 9 分；表單登入、console 200）、Open Design（約 12 分；匿名 401、登入 200、console 200）。
   ⚠ 平台「重設管理員密碼」會讓 Pi agent 等 pod 重啟，重啟期間再按一次會被拒（服務正在完成更新）。
+- 2026-11-15 20:10–21:30 第三批：7 個 MCP、Headscale、Tailscale、Nextcloud、Home Assistant 完整版、Code Server 全部開通並保留；
+  MCP Odoo 端到端（連本機平台 Odoo、MCP 協定列 41 個工具、search_records 查出 23 個範本）；Tailscale 經 VPN 配對加入同工作區 Headscale（節點上線 100.64.0.1）；
+  HA 完成初始設定；HAOS 磁碟不足 → 隱藏。測試用密碼依使用者要求設為同一組簡單密碼（MCP Headscale 除外）。
+
