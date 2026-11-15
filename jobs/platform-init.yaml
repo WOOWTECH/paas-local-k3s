@@ -15,6 +15,15 @@ spec:
   template:
     spec:
       restartPolicy: Never
+      # 第一個掛 PVC 的 pod 決定 local-path PV 綁哪個節點 → 這裡就避開筆電／TUF（與 tools/post-render-lab-addon.py 的 AVOID_NODES 一致）
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [woowtechcluster1-aorus-15p-xd, woowtech-ai-coder-asus-tuf-gaming-f15-fx507zu4-fx507zu4]
       securityContext:
         fsGroup: 101
       imagePullSecrets:

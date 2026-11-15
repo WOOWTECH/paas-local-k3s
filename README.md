@@ -16,10 +16,11 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 鏡像 repo 是「強制推送的鏡像」，GitHub 端不得有自己的 commit；所有本機差異（values、init Job、overlay addon、工具）都放這裡。
 
 ## 目錄
-- `tools/gitea-push-mirrors.sh`   在 Gitea 上建立 6 個 push mirror（需 GitHub fine-grained PAT）
+- `tools/gitea-push-mirrors.sh`   在 Gitea 上建立 6 個 push mirror（GitHub 寫入權預設取 `gh auth token`）
 - `tools/images.txt`               要從 JCR 複製到 GHCR 的映像清單（digest 釘死）
 - `tools/mirror-images.sh`         在筆電節點跑 skopeo Job（hostAliases 走 tailnet 到 JCR）
 - `tools/mirror-charts.sh`         從 Gitea Helm registry 拉 chart 推到 oci://ghcr.io/woowtech/charts
+- `tools/post-render-lab-addon.py` Helm post-renderer：把 overlay addon 以 ConfigMap 掛到 /opt/woow/addons/、所有平台工作負載避開筆電／TUF
 - `values/paas-operator.lab.yaml`  operator Helm values（lab）
 - `values/woow-odoo.platform.lab.yaml` 平台 Odoo Helm values（lab）
 - `values/cloudflare-ha.lab.yaml`  lab tunnel connector values
@@ -28,18 +29,35 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 
 ## 執行順序（runbook）
 0. 憑證就位（見下）。
-1. `tools/gitea-push-mirrors.sh` → 6 個 GitHub repo 同步完成（看 `last_update`／`last_error`）。
-2. `tools/mirror-images.sh` → 映像進 GHCR；`tools/mirror-charts.sh` → chart 進 GHCR。
-3. 本機叢集：`kubectl --context default create ns paas-system`；建 GHCR pull secret `ghcr-registry`。
-4. Cloudflare：用 CF token 建 tunnel `paas-lab`（API），取得 tunnel id／token；裝 `cloudflare-ha` chart（paas-app-bundle-cd 的 vendored chart）到 ns `paas-stg-cloudflare-system`。
-5. `helm install paas-operator oci://ghcr.io/woowtech/charts/paas-operator --version 0.1.36 -n paas-system -f values/paas-operator.lab.yaml`。
-6. `helm install paas-odoo-platform oci://ghcr.io/woowtech/charts/woow-odoo --version 0.2.27 -n paas-system -f values/woow-odoo.platform.lab.yaml --set replicas=0 --set cron.replicas=0`（只起 PG）。
-7. `kubectl apply -f jobs/platform-init.yaml` → 建 DB、-i woow_paas_platform、預寫 upgrade_done、seed 參數。
-8. 把 web／cron 拉到 1；overlay addon 掛進去 `-i woow_paas_platform_lab`。
+1. `tools/gitea-push-mirrors.sh` → 6 個 GitHub repo 同步完成（看 `last_update`／`last_error`；之後 `gh repo edit --default-branch` 對齊 Gitea 預設分支）。
+2. `tools/mirror-images.sh` → 映像進 GHCR（skopeo Job 在筆電節點、走 tailnet；約 1.5 MB/s）；`tools/mirror-charts.sh` → chart 進 GHCR。
+3. 本機叢集：ns `paas-system`、`paas-stg-cloudflare-system`；Secrets：`ghcr-registry`（docker-registry）、`paas-operator-secret/api-key`、
+   `paas-operator-registry/registry-password`、`paas-operator-cloudflare/cloudflare-api-token`、`paas-platform-lab-admin/admin-password`。
+   平台三把密鑰寫在 gitignored 的 `values/secrets.platform.lab.yaml`（credentials.postgresPassword／odooPassword／adminPasswd，各 ≥8 字）。
+4. Cloudflare：API 建 tunnel `paas-lab`（`config_src=cloudflare`），存 `~/woow_tech_credential/paas-lab-tunnel.env`（TUNNEL_ID／TUNNEL_TOKEN）；
+   tunnel 設定 ingress：`paas-lab.woowtech.io → http://traefik.kube-system.svc.cluster.local:80`＋`http_status:404`；DNS CNAME `paas-lab` → `<tunnel>.cfargotunnel.com`（proxied）。
+   connector：`helm upgrade --install cloudflare-tunnel-ha-lab <paas-app-bundle-cd>/cloudflare-ha-stg/chart -n paas-stg-cloudflare-system -f values/cloudflare-ha.lab.yaml --set cloudflare.tunnel_token=…`。
+5. `helm upgrade --install paas-operator oci://ghcr.io/woowtech/charts/paas-operator --version 0.1.36 -n paas-system -f values/paas-operator.lab.yaml --wait`。
+6. `helm upgrade --install paas-odoo-platform oci://ghcr.io/woowtech/charts/woow-odoo --version 0.2.27 -n paas-system -f values/woow-odoo.platform.lab.yaml -f values/secrets.platform.lab.yaml --set replicas=0 --set cron.replicas=0 --post-renderer tools/post-render-lab-addon.py`
+   ⚠ 這一步**不要加 `--wait`**：local-path 是 WaitForFirstConsumer，web 0 副本時 `-data`／`-backup` PVC 會一直 Pending，--wait 會等到超時並把 release 標成 failed（資源其實都建好了；下一次 upgrade 會修正狀態）。
+7. `kubectl apply -f jobs/platform-init.yaml` → 建 DB、`-i base,web,woow_paas_platform,woow_paas_platform_lab`、預寫 upgrade_done、seed 參數、設 admin 密碼。
+   Job 是 `-data` PVC 的第一個消費者，決定 PV 綁哪個節點（已加 nodeAffinity 避開筆電／TUF）。
+8. 同第 6 步的指令但不帶 `--set replicas=0 --set cron.replicas=0`（可加 `--wait`）→ web／cron 各 1 副本。
 9. 驗收：開 workspace → 裝 postgresql／n8n → 檢查 ns／quota／netpol／備份 CronJob／tunnel 路由 → 刪除 → PVC 標記。
 
-## 需要的憑證（放 ~/woow_tech_credential/，chmod 600，不進 git）
-- `github-mirror-pat.env`：`GITHUB_MIRROR_PAT=…`（fine-grained，只對上面 6 個 repo：Contents read/write；若 repo 含 .github/workflows 另加 Workflows write — 目前 6 個都沒有）
-- `ghcr-pat.env`：`GHCR_PAT=…`（classic，read:packages + write:packages；GHCR 不吃 fine-grained）
-- `jcr-readonly.env`：`JCR_USER=… JCR_PASS=…`（JCR 唯讀；建議另開 lab 帳號而不是 woow-prod-2）
-- `cf-paas-lab.env`：`CF_API_TOKEN=…`（Account: Cloudflare Tunnel Edit；Zone woowtech.io: DNS Edit）
+## 憑證（都在 ~/woow_tech_credential/，chmod 600，不進 git）—— 2026-11-15 實際採用
+- GitHub 寫入（push mirror 的 remote_password）與 GHCR 推／拉：**直接用這台機器 `gh auth token`**（classic，repo＋write:packages；使用者決定）。
+  若改用小鑰匙：放 `github-mirror-pat.env`（GITHUB_MIRROR_PAT）／`ghcr-pat.env`（GHCR_PAT），腳本會優先採用。
+- `jcr-readonly.env`：`JCR_USER`／`JCR_PASS` ＝ **正式站 tenant ns 的 `paas-registry` pull secret（woow-prod-2）**（使用者決定沿用）。
+- `cf-paas-lab.env`：`CF_API_TOKEN`（使用者提供；可讀 account tunnels、zone DNS；**zone WAF rulesets 403** → operator 的 MCP 公網連通性檢查顯示 waf=permission_denied，6 範本不受影響）。
+- `paas-lab-tunnel.env`：`TUNNEL_ID=7ff55c23-213e-4077-b823-a7e1744078b8`、`TUNNEL_TOKEN`（建 tunnel 時取得）。
+- `paas-lab-platform.env`：OPERATOR_API_KEY、PLATFORM_ADMIN_PASSWORD、PLATFORM_PG_PASSWORD、PLATFORM_ODOO_PASSWORD、PLATFORM_MASTER_PASSWD（本機產生）。
+
+## 執行紀錄
+- 2026-11-15 15:12 push mirror 6 個建立並同步成功（head SHA／tag 數與 Gitea 一致；GitHub 預設分支已對齊）。
+- 2026-11-15 15:13 chart 5 支推上 ghcr（woow-odoo 0.2.27／0.2.26、paas-operator 0.1.36、litellm 0.3.16、emqx 0.1.11）。
+- 2026-11-15 15:15 skopeo Job 開跑（第一次失敗：skopeo 不接受 tag+digest 並存 → 改 repo@digest）。
+- 2026-11-15 15:20 tunnel paas-lab 建立、connector 上線（healthy，4 條連線）、`https://paas-lab.woowtech.io/` 已通到本機 traefik（404 = 尚無 Ingress）。
+- 2026-11-15 15:27 operator 0.1.36 deployed（woowtechcluster7；F6 guard OK）。
+- 2026-11-15 15:31 平台 release 安裝（PG 在 woowtechcluster2；--wait 因 PVC Pending 超時 → 狀態 failed，見第 6 步註）。
+- 2026-11-15 15:40 platform-init Job 開跑（woowtechcluster4，`-data` PV 綁在該節點）。

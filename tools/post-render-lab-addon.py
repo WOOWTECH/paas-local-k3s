@@ -8,6 +8,7 @@
 用法：helm ... --post-renderer tools/post-render-lab-addon.py
   stdin  = helm 渲染出的 manifests
   stdout = 同一份 manifests ＋ 一個 ConfigMap（隨 release 一起管理）＋ Deployment 的 volume／volumeMount
+         ＋ 所有工作負載加上 nodeAffinity 避開筆電／TUF（AVOID_NODES）
 """
 import os, sys, pathlib, yaml
 
@@ -18,6 +19,29 @@ CM_NAME = "woow-paas-platform-lab-addon"
 VOL = "lab-addon"
 MOUNT = f"/opt/woow/addons/{ADDON}"          # = woow-odoo.imageAddonsDirs/<addon>
 TARGET_DEPLOYMENTS = {"paas-odoo-platform", "paas-odoo-platform-cron"}
+# lab 排程：筆電（16G 已 227% 超賣、有 OOM 史）與 TUF（GPU/vllm）不收平台工作負載；local-path PV 綁節點，所以一開始就避開。
+AVOID_NODES = ["woowtechcluster1-aorus-15p-xd", "woowtech-ai-coder-asus-tuf-gaming-f15-fx507zu4-fx507zu4"]
+WORKLOAD_KINDS = {"Deployment", "StatefulSet", "CronJob", "Job"}
+
+def pod_spec(d):
+    k = d.get("kind")
+    if k == "CronJob":
+        return d["spec"]["jobTemplate"]["spec"]["template"]["spec"]
+    if k in WORKLOAD_KINDS:
+        return d["spec"]["template"]["spec"]
+    return None
+
+def add_node_avoidance(spec):
+    aff = spec.setdefault("affinity", {})
+    na = aff.setdefault("nodeAffinity", {})
+    req = na.setdefault("requiredDuringSchedulingIgnoredDuringExecution", {"nodeSelectorTerms": []})
+    terms = req.setdefault("nodeSelectorTerms", [])
+    expr = {"key": "kubernetes.io/hostname", "operator": "NotIn", "values": AVOID_NODES}
+    if not terms:
+        terms.append({"matchExpressions": [expr]})
+    else:
+        for t in terms:
+            t.setdefault("matchExpressions", []).append(expr)
 
 def key_for(rel: str) -> str:
     return rel.replace("/", ".")              # ConfigMap key 只能 [-._a-zA-Z0-9]
@@ -33,6 +57,9 @@ def main():
     files = list(addon_files())
     items = [{"key": key_for(rel), "path": rel} for rel, _ in files]
     for d in docs:
+        ps = pod_spec(d)
+        if ps is not None:
+            add_node_avoidance(ps)
         if d.get("kind") != "Deployment" or d["metadata"]["name"] not in TARGET_DEPLOYMENTS:
             continue
         ns = ns or d["metadata"].get("namespace")

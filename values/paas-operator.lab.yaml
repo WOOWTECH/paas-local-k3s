@@ -38,7 +38,15 @@ registry:
   existingSecretKey: registry-password
 pvcCleanup:
   enabled: true
-nodeSelector: {}                       # 不要釘筆電；operator 很小，隨便排
+nodeSelector: {}
+affinity:                              # 避開筆電／TUF（兩台已滿；與平台同一條規則）
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: NotIn
+              values: [woowtechcluster1-aorus-15p-xd, woowtech-ai-coder-asus-tuf-gaming-f15-fx507zu4-fx507zu4]
 resources:
   requests: { cpu: 50m, memory: 256Mi }
   limits: { cpu: "1", memory: 1Gi }
