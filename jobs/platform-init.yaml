@@ -13,6 +13,12 @@ spec:
   backoffLimit: 0
   activeDeadlineSeconds: 3600
   template:
+    metadata:
+      labels:
+        # chart 的 NetworkPolicy paas-odoo-platform-postgresql 只放行 app.kubernetes.io/instance=paas-odoo-platform 的 pod。
+        # component 用 platform-init（不是 server／postgresql），所以不會被任何 Service selector 選成後端。
+        app.kubernetes.io/instance: paas-odoo-platform
+        app.kubernetes.io/component: platform-init
     spec:
       restartPolicy: Never
       # 第一個掛 PVC 的 pod 決定 local-path PV 綁哪個節點 → 這裡就避開筆電／TUF（與 tools/post-render-lab-addon.py 的 AVOID_NODES 一致）
@@ -57,10 +63,11 @@ spec:
               set -euo pipefail
               log(){ printf '[platform-init] %s\n' "$*" >&2; }
               until pg_isready -q -h "$PGHOST" -p "$PGPORT"; do sleep 2; done
+              # ⚠ Kubernetes 會把 args 裡的 $$ 變成 $（$(VAR) 的跳脫規則）→ PL/pgSQL 一律用具名 dollar quote（$do$），不要寫 $$。
               # ① 角色與 DB：與 chart bootstrap ② 同形狀（ENCODING UTF8、LC_COLLATE C、template0、OWNER odoo、pg_trgm／vector）
               export PGPASSWORD="$PGSUPERUSER_PASSWORD"
               psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -v pw="$ODOO_DB_PASSWORD" <<'SQL'
-              DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='odoo') THEN CREATE ROLE odoo LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE; END IF; END $$;
+              DO $do$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='odoo') THEN CREATE ROLE odoo LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE; END IF; END $do$;
               SQL
               psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -c "ALTER ROLE odoo WITH PASSWORD '$(printf %s "$ODOO_DB_PASSWORD" | sed "s/'/''/g")'"
               if ! psql -X -tA -U postgres -d postgres -c "SELECT 1 FROM pg_database WHERE datname='$DB'" | grep -q 1; then
