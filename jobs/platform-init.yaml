@@ -66,7 +66,10 @@ spec:
                 log "DB already initialised; skipping -i"
               fi
               # ③ 預寫升級閘 marker：{digest, core_date}；core_date 取法與 chart lib.sh 一致（見 README 註）
-              core=$(dpkg-query -W -f='${Version}' odoo 2>/dev/null || true)
+              # core_date 取法同 chart files/lib.sh：去 epoch、去 debian revision，取前三段 ⇒ 18.0.YYYYMMDD
+              raw=$(dpkg-query -W -f='${Version}' odoo); raw=${raw#*:}; raw=${raw%%-*}
+              core=$(printf '%s' "$raw" | cut -d. -f1-3)
+              [[ $core =~ ^18\.0\.[0-9]{8}$ ]] || { log "unexpected odoo version '$raw'"; exit 2; }
               log "marker digest=$IMAGE_DIGEST core_date=$core"
               psql -X -v ON_ERROR_STOP=1 -U odoo -d "$DB" -v marker="{\"digest\":\"$IMAGE_DIGEST\",\"core_date\":\"$core\"}" <<'SQL'
               INSERT INTO ir_config_parameter (key, value, create_uid, create_date, write_uid, write_date)
