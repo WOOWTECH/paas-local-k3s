@@ -45,15 +45,12 @@ registry:
   existingSecretKey: registry-password
 pvcCleanup:
   enabled: true
-nodeSelector: {}
-affinity:                              # 避開筆電／TUF（兩台已滿；與平台同一條規則）
-  nodeAffinity:
-    requiredDuringSchedulingIgnoredDuringExecution:
-      nodeSelectorTerms:
-        - matchExpressions:
-            - key: kubernetes.io/hostname
-              operator: NotIn
-              values: [woowtechcluster1-aorus-15p-xd, woowtech-ai-coder-asus-tuf-gaming-f15-fx507zu4-fx507zu4]
+# operator 釘筆電（i7-11800H）。2026-11-15 實測：4GB 小節點是 2015 年的 Pentium N3700，operator 每次 kubectl apply
+# 要 2–3 秒（本叢集 245 種 API 資源，kubectl 每次都要解析整份 OpenAPI），新 namespace 要 38 秒 > 平台寫死的 30 秒
+# → 第一個服務必定 error。operator 很小（requests 256Mi），筆電記憶體 requests 仍放得下；平台 Odoo 與租戶照舊避開筆電。
+nodeSelector:
+  kubernetes.io/hostname: woowtechcluster1-aorus-15p-xd
+affinity: {}
 resources:
   # prod／stg 都是 limits cpu 2000m／memory 1Gi（#1552；更早 #?? 的 cold-start throttle 撞 Odoo 30 秒 timeout）。
   # 本機節點是 4 核小主機、API 有 245 種資源：一次 kubectl apply 吃約 2.9 CPU 秒，1 核時被節流 1.7 秒，
