@@ -76,6 +76,18 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
   MCP Headscale 的管理介面沒有改密碼功能。Nextcloud 密碼由 app 自管（occ user:resetpassword；預設密碼政策最短 10 字）。
 - Tailscale 要用平台的「VPN 配對」（`/vpn/options` → `/vpn/pair`）綁同工作區 Headscale，手動填 authKey 不會注入登入伺服器。
 
+## 第四批：平台層元件
+- **停權說明頁**（`infra/suspended-page/`）：已搬。
+- **Woow MCP gateway**（平台自己的 MCP，`https://paas-lab.woowtech.io/mcp/woow`）：已搬。
+  chart `woow-mcp-gateway 0.2.0`（GHCR）、映像 `tools/images-platform.txt`、`values/woow-mcp-gateway.lab.yaml`
+  （chart 沒有 affinity 參數 → `--post-renderer tools/post-render-avoid-nodes.py`）、`infra/woow-mcp-gateway/`（三條 path 的 Ingress、gateway→Odoo 的 NetworkPolicy）、
+  Secret `woow-mcp-gateway`＋平台 `webOnlyExtraEnv: WOOW_MCP_GATEWAY_SECRET`、overlay 打開 `api_token_enabled`（寫入開關維持關）。
+  只有「租戶帳號」（portal、share=True）能建 API token；測試帳號 `lab-tenant`。
+  ⚠ 這版平台映像沒有 `/.well-known/oauth-authorization-server`（正式站較新的 .215 才有）→ claude.ai 這類走 OAuth 的 MCP client 要等平台映像更新；用 API token 的 client 可用。
+- **operator／paas-system 網路白名單**（`infra/netpol/`）：已搬（operator 只收平台 Odoo；paas-system 預設擋 ingress）。
+- **不搬**：自訂網域 gateway（要動 woowtech.io zone 的 Cloudflare for SaaS 設定，跟正式站共用，會影響正式站自訂網域）；
+  agent runtime（要 LLM 金鑰＋operator 從受 Cloudflare Access 保護的 Gitea 抓 chart）；node-mss-clamp（只有 HAOS 需要，HAOS 已因磁碟隱藏）。
+
 ## 已知問題與 lab 專屬調整（2026-11-15 實測）
 - **TUF 節點的 pod 網路不通**：該節點上的 pod 連 CoreDNS 都逾時（叢集既有問題，需上機查 flannel／防火牆）。
   operator `config.tenantAvoidNodes` 讓租戶 pod 避開 TUF 與筆電；平台本身用 post-renderer 的 nodeAffinity 避開。
@@ -109,4 +121,6 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - 2026-11-15 20:10–21:30 第三批：7 個 MCP、Headscale、Tailscale、Nextcloud、Home Assistant 完整版、Code Server 全部開通並保留；
   MCP Odoo 端到端（連本機平台 Odoo、MCP 協定列 41 個工具、search_records 查出 23 個範本）；Tailscale 經 VPN 配對加入同工作區 Headscale（節點上線 100.64.0.1）；
   HA 完成初始設定；HAOS 磁碟不足 → 隱藏。測試用密碼依使用者要求設為同一組簡單密碼（MCP Headscale 除外）。
+- 2026-11-15 22:30–23:30 第四批：停權頁、Woow MCP gateway（租戶 token → MCP initialize／tools/list 5 個工具／list_workspaces 只回自己的工作區／撤銷後 401）、
+  paas-netpol（無關 pod 連不到 operator、平台照常）；overlay 18.0.1.0.10。
 

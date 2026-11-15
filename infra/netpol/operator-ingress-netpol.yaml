@@ -1,0 +1,29 @@
+# 照 paas-app-bundle-cd/paas-netpol（正式站）：① operator 只收 paas-system 裡平台 Odoo（app.kubernetes.io/name=odoo）的 8000；
+# ② paas-system 預設擋所有 ingress（平台 web／PG、gateway 各有 chart 自帶的放行，gateway→Odoo 見 infra/woow-mcp-gateway/）。
+# 本機拿掉正式站對 paas-stg-system 的放行（本機沒有 stg）。套用：kubectl --context default apply -f infra/netpol/
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: paas-operator-allow-platform-odoo
+  namespace: paas-system
+  labels:
+    app.kubernetes.io/name: paas-operator
+    app.kubernetes.io/component: control-plane-ingress
+    app.kubernetes.io/part-of: paas-operator
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: paas-operator
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: paas-system
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: odoo
+    ports:
+    - protocol: TCP
+      port: 8000

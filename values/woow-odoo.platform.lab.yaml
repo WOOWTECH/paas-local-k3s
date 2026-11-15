@@ -77,3 +77,11 @@ restore:
 #   postgresPassword: …
 #   odooPassword: …
 #   adminPasswd: …
+# Woow MCP gateway 的 HMAC（與 Secret woow-mcp-gateway 同一把；只有 web 接 /internal/woow/mcp 私有端點）
+webOnlyExtraEnv:
+  - name: WOOW_MCP_GATEWAY_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: woow-mcp-gateway
+        key: gateway-secret
+

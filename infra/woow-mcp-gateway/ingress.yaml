@@ -1,0 +1,24 @@
+# 平台 host 上導到 Woow MCP gateway 的三條 path（照 paas-app-bundle-cd/paas-odoo-edge/ingress.yaml 的註解）：
+# /mcp/woow（對外 MCP）、/internal/woow/mcp（Odoo 私有端點：導到 gateway 回 404，不讓它落進 / 到 Odoo）、
+# /.well-known/oauth-protected-resource/mcp/woow（RFC 9728 PRM）。OAuth AS metadata 與 /oauth/woow-mcp/* 照設計由 Odoo 回。
+# traefik 以規則長度當 priority，這三條都比平台 chart Ingress 的 / 長，所以會先比對。
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: woow-mcp-gateway
+  namespace: paas-system
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: paas-lab.woowtech.io
+      http:
+        paths:
+          - path: /mcp/woow
+            pathType: Prefix
+            backend: { service: { name: woow-mcp-gateway, port: { number: 8080 } } }
+          - path: /internal/woow/mcp
+            pathType: Prefix
+            backend: { service: { name: woow-mcp-gateway, port: { number: 8080 } } }
+          - path: /.well-known/oauth-protected-resource/mcp/woow
+            pathType: Prefix
+            backend: { service: { name: woow-mcp-gateway, port: { number: 8080 } } }

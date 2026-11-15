@@ -1,0 +1,26 @@
+# Woow MCP gateway（平台自己的 MCP 入口）— 照 paas-app-bundle-cd/woow-mcp-gateway-stg，host 換成本機平台。
+# token 驗證與資料都透過平台 Odoo 的私有端點（/internal/woow/mcp/introspect、/execute），gateway 本身不持有租戶權限。
+image:
+  registry: ghcr.io
+  repository: woowtech/woow-mcp-gateway
+  tag: 391939d199841fdd905d22f1aae5e807f46d76a8
+  digest: sha256:31875e8bb0af2c18c6ec1825a61c02c61181d45397c5c57fe1a703e3f53fa3d8
+imagePullSecrets:
+  - name: ghcr-registry
+gateway:
+  odooUrl: http://paas-odoo-platform.paas-system.svc.cluster.local   # 平台 Service（port 80 → nginx 8080）
+  resourceUrl: https://paas-lab.woowtech.io/mcp/woow
+  allowedHosts:
+    - paas-lab.woowtech.io
+  clientIpHeader: CF-Connecting-IP
+  authorizationServer: https://paas-lab.woowtech.io
+  secret:
+    existingSecret: woow-mcp-gateway          # 與平台 web 的 WOOW_MCP_GATEWAY_SECRET 同一把
+    key: gateway-secret
+networkPolicy:
+  odoo:
+    podSelector:
+      app.kubernetes.io/name: odoo
+      app.kubernetes.io/instance: paas-odoo-platform
+      app.kubernetes.io/component: server
+# chart 0.2.0 沒有 affinity／nodeSelector 參數 → 安裝時加 --post-renderer tools/post-render-avoid-nodes.py（避開 TUF／筆電）

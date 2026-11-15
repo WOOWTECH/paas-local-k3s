@@ -1,0 +1,2 @@
+# 第四批（2026-11-15 夜）：平台層 Woow MCP gateway（chart woow-mcp-gateway 0.2.0，digest 照 paas-app-bundle-cd/woow-mcp-gateway-stg）
+jcr-prod.woowtech.io/woow-paas-docker-local/woow-mcp-gateway:391939d199841fdd905d22f1aae5e807f46d76a8@sha256:31875e8bb0af2c18c6ec1825a61c02c61181d45397c5c57fe1a703e3f53fa3d8 ghcr.io/woowtech/woow-mcp-gateway:391939d199841fdd905d22f1aae5e807f46d76a8

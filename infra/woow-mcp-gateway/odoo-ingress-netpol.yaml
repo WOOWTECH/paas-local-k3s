@@ -1,0 +1,29 @@
+# 照 paas-app-bundle-cd/paas-netpol/odoo-woow-mcp-gateway-ingress-netpol.yaml：放行 gateway pod 連平台 web 的 nginx 8080
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: paas-odoo-platform-allow-woow-mcp-gateway
+  namespace: paas-system
+  labels:
+    app.kubernetes.io/name: paas-odoo-platform
+    app.kubernetes.io/component: woow-mcp-gateway-ingress
+    app.kubernetes.io/part-of: paas-odoo
+spec:
+  # 跟 `paas-odoo-active`（paas-odoo-edge/service.yaml）的 selector 相同：只選 web pod。
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: paas-odoo-platform
+      app.kubernetes.io/component: server
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # 一個元素、一個 podSelector（同 ns）；兩個 label 在同一個 matchLabels ＝ AND。
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: woow-mcp-gateway
+              app.kubernetes.io/instance: woow-mcp-gateway
+      ports:
+        # post-DNAT 的 pod 端口（nginx sidecar），不是 Service 的 80。
+        - protocol: TCP
+          port: 8080

@@ -212,6 +212,10 @@ class CloudAppTemplateLab(models.Model):
     def _lab_setup_cluster_params(self):
         """lab 叢集專屬的 ir.config_parameter（正式站由 ops 各自設定，不進上游 seed）。"""
         icp = self.env["ir.config_parameter"].sudo()
+        # Woow MCP（woow-mcp-gateway）要租戶建 API token；總開關預設關（寫入權限的開關不動，維持關閉）
+        if (icp.get_param("woow_paas_platform.api_token_enabled") or "").strip().lower() not in ("1", "true", "yes", "on"):
+            icp.set_param("woow_paas_platform.api_token_enabled", "True")
+            _logger.info("woow_paas_platform_lab: api_token_enabled set to True")
         if icp.get_param("woow_paas_platform.apiserver_cidrs") != LAB_APISERVER_CIDRS:
             icp.set_param("woow_paas_platform.apiserver_cidrs", LAB_APISERVER_CIDRS)
             _logger.info("woow_paas_platform_lab: apiserver_cidrs set to %s", LAB_APISERVER_CIDRS)
