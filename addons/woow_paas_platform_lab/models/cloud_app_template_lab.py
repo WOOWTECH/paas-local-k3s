@@ -24,7 +24,11 @@ GHCR_REPO_DIR = "woowtech/"
 # lab 依使用者決定開啟，映像沿用 chart 預設的 docker.io/bitnami/*:latest（浮動，已知風險）。
 LAB_VISIBLE_SLUGS = ("postgresql", "redis", "n8n", "odoo", "litellm", "emqx",
                      # 第二批（使用者 2026-11-15 晚：「再去上架實作實測 Pi agent Hermes od omnigent」）
-                     "pi-agent", "hermes-agent", "open-design", "omnigent")
+                     "pi-agent", "hermes-agent", "open-design", "omnigent",
+                     # 第三批（使用者 2026-11-15 夜：「去搬剩下還沒搬過去的」）：正式站對外開放的其餘 13 個。
+                     # 正式站也隱藏的 6 個（ha-paas、ha-full-apporo、mcp-k8s、mcp-odoo-manage、mcp-opendesign、mcp-vk）維持隱藏。
+                     "code-server", "ha-full", "haos", "headscale", "nextcloud", "tailscale",
+                     "mcp-emqx", "mcp-headscale", "mcp-hermes", "mcp-litellm", "mcp-n8n", "mcp-nextcloud", "mcp-odoo")
 
 # chart 位置例外：GHCR 上 charts/omnigent 已是別的專案的「公開」package，WOOW 的 omnigent chart 推進去會變公開
 # → 改放私有的 paas-charts/omnigent（tools/mirror-charts.sh 同步）。
@@ -45,12 +49,19 @@ LAB_PLAN_SPECS = {
     "woow_paas_platform.plan_pi_agent_yearly": {"cs_ram_gb": 3.0},
     "woow_paas_platform.plan_omnigent_monthly": {"cs_ram_gb": 3.0, "cs_vcpu": 2},
     "woow_paas_platform.plan_omnigent_yearly": {"cs_ram_gb": 3.0, "cs_vcpu": 2},
+    # 第三批：code-server 8GB（requests 會是 4Gi）、nextcloud 4GB（requests 2Gi）→ 3GB
+    "woow_paas_platform.plan_code_server_monthly": {"cs_ram_gb": 3.0},
+    "woow_paas_platform.plan_code_server_yearly": {"cs_ram_gb": 3.0},
+    "woow_paas_platform.plan_nextcloud_monthly": {"cs_ram_gb": 3.0},
+    "woow_paas_platform.plan_nextcloud_yearly": {"cs_ram_gb": 3.0},
 }
 
 # chart 預設值裡指向 JCR、但範本 helm_default_values 沒覆寫的映像（2026-11-15 實查 chart 0.2.26/0.2.27、litellm 0.3.16、emqx 0.1.11）。
 # 只補 registry／repository，tag／digest 沿用 chart 預設（與 tools/images.txt 複製到 ghcr 的同一顆）。
 CHART_DEFAULT_IMAGE_FIXES = {
     "woow-odoo": [(("postgres", "image"), {"registry": GHCR_REGISTRY, "repository": GHCR_REPO_DIR + "paas-postgres"})],
+    # nextcloud chart 0.1.9：postgresql.image.repository 是含 registry 的完整路徑（tag 17.11-20260928.1549，第一批已複製）
+    "nextcloud": [(("postgresql", "image"), {"repository": GHCR_IMAGE_PREFIX + "paas-postgres"})],
 }
 
 
@@ -86,6 +97,8 @@ TEMPLATE_VALUE_FIXES = {
                                   "limits": {"cpu": "2", "memory": "3Gi"}}},
     "hermes-agent": {"agent": {"resources": {"requests": {"cpu": "250m", "memory": "1Gi"},
                                              "limits": {"cpu": "2", "memory": "3Gi"}}}},
+    # HAOS VM 範本是 2 核 4Gi：4GB 節點放不下（virt-launcher 還有額外開銷），壓到 HAOS 最低建議的 2Gi
+    "haos": {"vm": {"memory": "2Gi"}},
 }
 
 

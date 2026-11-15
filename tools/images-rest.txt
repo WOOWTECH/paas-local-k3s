@@ -1,0 +1,17 @@
+# 第三批（2026-11-15 夜）：正式站對外開放、本機還沒搬的 13 個範本用到的映像（digest 照映像內 seed 的釘選）
+# 小的 MCP 映像排前面，先能測；headplane GHCR 上已有同 digest，不用複製；paas-postgres 第一批已複製。
+jcr-prod.woowtech.io/woow-paas-docker-local/odoo-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567@sha256:aed35228dc8866439f3952bc7f425411ffd6b6f50a8231b09ece2d250c8ca2b2 ghcr.io/woowtech/odoo-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567
+jcr-prod.woowtech.io/woow-paas-docker-local/n8n-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567@sha256:93d6599a2e8a644bfe6d28181a8c2449e80fe93a8c70dc9aab4c8aca97e9154c ghcr.io/woowtech/n8n-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567
+jcr-prod.woowtech.io/woow-paas-docker-local/hermes-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567@sha256:21f9d8a91133ab6f5169e4bc5b48989868da8345b992da5ca8ef18c68b2b3c60 ghcr.io/woowtech/hermes-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567
+jcr-prod.woowtech.io/woow-paas-docker-local/litellm-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567@sha256:43d824bb6ca3f7c151dc08aafcbdb18e2762968b0b0705f15d20b034433a8d26 ghcr.io/woowtech/litellm-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567
+jcr-prod.woowtech.io/woow-paas-docker-local/emqx-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567@sha256:78f45cbca960b4fcb2bc826244811a3fd78e7131fe7a0d680e03cb9905e4eb00 ghcr.io/woowtech/emqx-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567
+jcr-prod.woowtech.io/woow-paas-docker-local/headscale-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567@sha256:173a9c4bb16fa4b06ba8d74ce9c10360dd812f81cd077da3a57796766684a689 ghcr.io/woowtech/headscale-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567
+jcr-prod.woowtech.io/woow-paas-docker-local/nextcloud-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567@sha256:cac243527c8854744953963bfa5f21eaa967a2fa37c171aeb4791cbafffd139c ghcr.io/woowtech/nextcloud-mcp-admin:443e95a942c7ef0484d963631382aab94d0e0567
+jcr-prod.woowtech.io/woow-paas-docker-local/headscale:20261004.0159@sha256:8833f828b414c0907b7e5c71da76473216fe17cce0818a166b536ec552c0903f ghcr.io/woowtech/headscale:20261004.0159
+jcr-prod.woowtech.io/woow-paas-docker-local/headscale-debug:20261004.0502@sha256:2380cdb4951e5d63747d5880aeecaf7aea7702f06ea72a6b9d8010b9386195b8 ghcr.io/woowtech/headscale-debug:20261004.0502
+jcr-prod.woowtech.io/woow-paas-docker-local/tailscale:20261110.0208@sha256:d819a107561f623f2ec5c6fecb6c629f8ae06417e2d6dec00f2537d48ac8ae7c ghcr.io/woowtech/tailscale:20261110.0208
+jcr-prod.woowtech.io/woow-paas-docker-local/redis:20261002.0258@sha256:ca0acbb137c1dc3339c8b147a58fd6f42775d4599327b50e7b116c23de501af2 ghcr.io/woowtech/redis:20261002.0258
+jcr-prod.woowtech.io/woow-paas-docker-local/nextcloud:20261002.0258@sha256:fc04168b172e09d9b9bc7665476a77898634fe2833f0a320366fb9eb0db491db ghcr.io/woowtech/nextcloud:20261002.0258
+jcr-prod.woowtech.io/woow-paas-docker-local/woowtech-ha-full:20260923.0804@sha256:3eaf22a5396877b7742a410809709450fc6f925c7e552fbd1bf6977be07598af ghcr.io/woowtech/woowtech-ha-full:20260923.0804
+jcr-prod.woowtech.io/woow-paas-docker-local/haos:18.1-20261018.0850@sha256:5e40d52660b8a618412d59223005d44fcd4d152fb5d2bf4ed8f309385741ff04 ghcr.io/woowtech/haos:18.1-20261018.0850
+jcr-prod.woowtech.io/woow-paas-docker-local/code-server:20261018.0107@sha256:84a37cddc190d8933678a4036b0c6609955122adcec48a147ced6e6693e2c561 ghcr.io/woowtech/code-server:20261018.0107

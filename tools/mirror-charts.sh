@@ -8,7 +8,8 @@ GITEA_TOKEN=$(grep -E "^\s*token:" ~/.config/tea/config.yml | head -1 | awk '{pr
 GHCR_PAT=${GHCR_PAT:-$(gh auth token)}; : "${GHCR_PAT:?}"  # 2026-11-15：預設用 gh CLI 的 token（write:packages）
 # 第三欄＝目的地（預設 oci://ghcr.io/woowtech/charts）。omnigent 改放 paas-charts：GHCR 上 charts/omnigent 是別的專案的公開 package，推進去會變公開。
 CHARTS=("woow-odoo 0.2.27" "woow-odoo 0.2.26" "paas-operator 0.1.36" "litellm 0.3.16" "emqx 0.1.11"
-        "pi-agent 0.1.20" "hermes-agent 0.4.9" "open-design 0.5.10" "omnigent 0.1.19 oci://ghcr.io/woowtech/paas-charts")
+        "pi-agent 0.1.20" "hermes-agent 0.4.9" "open-design 0.5.10" "omnigent 0.1.19 oci://ghcr.io/woowtech/paas-charts"
+        "code-server 0.1.9" "home-assistant-full 0.1.10" "haos 0.1.7" "headscale 0.1.8" "mcp-server 0.1.10" "nextcloud 0.1.9" "tailscale 0.1.11")
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
 printf '%s' "$GHCR_PAT" | helm registry login ghcr.io -u WOOWTECH --password-stdin
 for c in "${CHARTS[@]}"; do set -- $c; name=$1; ver=$2; dest=${3:-oci://ghcr.io/woowtech/charts}
