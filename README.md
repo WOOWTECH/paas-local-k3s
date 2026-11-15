@@ -40,9 +40,11 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 5. `helm upgrade --install paas-operator oci://ghcr.io/woowtech/charts/paas-operator --version 0.1.36 -n paas-system -f values/paas-operator.lab.yaml --wait`。
 6. `helm upgrade --install paas-odoo-platform oci://ghcr.io/woowtech/charts/woow-odoo --version 0.2.27 -n paas-system -f values/woow-odoo.platform.lab.yaml -f values/secrets.platform.lab.yaml --set replicas=0 --set cron.replicas=0 --post-renderer tools/post-render-lab-addon.py`
    ⚠ 這一步**不要加 `--wait`**：local-path 是 WaitForFirstConsumer，web 0 副本時 `-data`／`-backup` PVC 會一直 Pending，--wait 會等到超時並把 release 標成 failed（資源其實都建好了；下一次 upgrade 會修正狀態）。
-7. `kubectl apply -f jobs/platform-init.yaml` → 建 DB、`-i base,web,woow_paas_platform,woow_paas_platform_lab`、預寫 upgrade_done、seed 參數、設 admin 密碼。
+7. `python3 tools/with-lab-addon-items.py jobs/platform-init.yaml | kubectl --context default apply -f -` → 建 DB、`-i base,web,woow_paas_platform,woow_paas_platform_lab`、預寫 upgrade_done、seed 參數、設 admin 密碼（約 15 分）。
    Job 是 `-data` PVC 的第一個消費者，決定 PV 綁哪個節點（已加 nodeAffinity 避開筆電／TUF）。
-8. 同第 6 步的指令但不帶 `--set replicas=0 --set cron.replicas=0`（可加 `--wait`）→ web／cron 各 1 副本。
+8. 先手動跑一次備份讓備份 PVC 綁定：`kubectl --context default -n paas-system create job --from=cronjob/paas-odoo-platform-backup paas-odoo-platform-backup-manual-1`；
+   再跑第 6 步的指令但不帶 `--set replicas=0 --set cron.replicas=0`（可加 `--wait`）→ web／cron 各 1 副本。
+   之後 overlay addon 有改：一律用 `tools/lab-overlay-update.sh`（先 `-u` 再滾動；順序反了 upgrade-gate 會讓 web 起不來）。
 9. 驗收：開 workspace → 裝 postgresql／n8n → 檢查 ns／quota／netpol／備份 CronJob／tunnel 路由 → 刪除 → PVC 標記。
 
 ## 憑證（都在 ~/woow_tech_credential/，chmod 600，不進 git）—— 2026-11-15 實際採用
@@ -52,6 +54,15 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - `cf-paas-lab.env`：`CF_API_TOKEN`（使用者提供；可讀 account tunnels、zone DNS；**zone WAF rulesets 403** → operator 的 MCP 公網連通性檢查顯示 waf=permission_denied，6 範本不受影響）。
 - `paas-lab-tunnel.env`：`TUNNEL_ID=7ff55c23-213e-4077-b823-a7e1744078b8`、`TUNNEL_TOKEN`（建 tunnel 時取得）。
 - `paas-lab-platform.env`：OPERATOR_API_KEY、PLATFORM_ADMIN_PASSWORD、PLATFORM_PG_PASSWORD、PLATFORM_ODOO_PASSWORD、PLATFORM_MASTER_PASSWD（本機產生）。
+
+## 已知問題與 lab 專屬調整（2026-11-15 實測）
+- **TUF 節點的 pod 網路不通**：該節點上的 pod 連 CoreDNS 都逾時（叢集既有問題，需上機查 flannel／防火牆）。
+  operator `config.tenantAvoidNodes` 讓租戶 pod 避開 TUF 與筆電；平台本身用 post-renderer 的 nodeAffinity 避開。
+- **operator CPU**：kubectl apply 每次約 2.9 CPU 秒（本叢集 245 種 API 資源）；limits 1 核時建 namespace 34 秒 > 平台寫死的 30 秒 timeout。現為 3 核。
+- **Bitnami postgresql／redis**：上游 is_active=False、映像只剩 `:latest`（浮動）；chart 自帶 NetworkPolicy 被 operator 的
+  `paas-operator-tenant-netpol-guard` 擋 → overlay 關掉 chart NP；Redis 上游零方案 → overlay 補「Redis 月繳（lab）」。
+- **訂閱日記帳**：fresh DB 沒設 → overlay `_lab_setup_billing` 自動補。
+- **公開網址**：租戶服務是 `paas-cs-<ws8>-<svc8>.woowtech.io`，跟正式站同一層網域，名稱不會撞（帶亂數），但肉眼分不出是 lab。
 
 ## 執行紀錄
 - 2026-11-15 15:12 push mirror 6 個建立並同步成功（head SHA／tag 數與 Gitea 一致；GitHub 預設分支已對齊）。

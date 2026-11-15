@@ -21,6 +21,13 @@ config:
   tenantPodSecurity: false             # 本機 Rancher 的 updatepsa 動詞問題先避開；第二階段再開
   agentRuntime:
     enabled: false                     # 需要 Gitea classic chart repo 憑證＋LLM；第一階段不開
+  # 租戶 pod 不排到這兩台（operator 的 post-renderer 加 required nodeAffinity NotIn；只影響之後 install/upgrade 的 pod）：
+  # - TUF：2026-11-15 實測該節點的 pod 網路不通（連 CoreDNS 10.42.0.2／10.43.0.10 都逾時，只有走節點 IP 的 API 通）
+  #        → Odoo 租戶的 bootstrap 連不到自己的 PG 300 秒失敗。屬叢集既有問題，要有人上那台查 flannel／防火牆。
+  # - 筆電：記憶體 requests 已超賣、有 OOM 史。
+  tenantAvoidNodes:
+    - woowtechcluster1-aorus-15p-xd
+    - woowtech-ai-coder-asus-tuf-gaming-f15-fx507zu4-fx507zu4
 cloudflare:
   enabled: true                        # 使用者決定沿用 Cloudflare Tunnel
   domain: "woowtech.io"                # 使用者決定直接用根域（與 prod/stg 同 zone 同層）
