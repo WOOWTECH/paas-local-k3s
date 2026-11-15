@@ -1,0 +1,44 @@
+# paas-operator（lab）— chart oci://ghcr.io/woowtech/charts/paas-operator 0.1.36
+# 對照正式站 paas-app-bundle-cd/paas-operator/values-prod.yaml；差異都有註明理由。
+replicaCount: 1                       # lab 一副本即可（prod 2）
+image:
+  repository: ghcr.io/woowtech/paas-operator
+  tag: "mcp-waf-merged-fe2efc0b@sha256:488dab7d8273d3b946bd92c1e238f8a41307da5859f02ce3163f6e0e825073a3"
+  pullPolicy: IfNotPresent
+imagePullSecrets:
+  - name: ghcr-registry                # 手動建：kubectl -n paas-system create secret docker-registry ghcr-registry --docker-server=ghcr.io ...
+auth:
+  existingSecret: paas-operator-secret # 手動建：openssl rand -hex 32 → key api-key
+  existingSecretKey: api-key
+config:
+  namespacePrefix: "paas-ws-lab-"      # 與 prod/stg 區分；F6 守門：prefix 不含 prod/stg ⇒ 不與 paasEnv 衝突
+  paasEnv: "stg"                       # chart 只能給 prod|stg；stg 讓 SA 命名帶 paas-stg-（SA 本來就隱藏）；
+                                       # 同時決定 cloudflared ns = paas-stg-cloudflare-system（connector 要裝在那裡）
+  pvcGracePeriodDays: 7
+  storageCapacityPrecheck: false       # 本機沒有 Longhorn；關掉省一次 dry-run
+  computeQuotaPrecheck: true
+  tenantBaselineEgress: true           # 工作區＝自己的區網；本機也成立
+  tenantPodSecurity: false             # 本機 Rancher 的 updatepsa 動詞問題先避開；第二階段再開
+  agentRuntime:
+    enabled: false                     # 需要 Gitea classic chart repo 憑證＋LLM；第一階段不開
+cloudflare:
+  enabled: true                        # 使用者決定沿用 Cloudflare Tunnel
+  domain: "woowtech.io"                # 使用者決定直接用根域（與 prod/stg 同 zone 同層）
+  accountId: "9c27f623ee596e0b67be56263bcb1974"
+  zoneId: "4d12cea85ec6022e42b72015c43e5513"
+  tunnelId: "TODO-lab-tunnel-id"       # 用 CF token 建 tunnel paas-lab 後填入
+  existingSecret: paas-operator-cloudflare   # key cloudflare-api-token
+  existingSecretKey: cloudflare-api-token
+customDomains:
+  enabled: false
+registry:
+  server: "ghcr.io"                    # operator 只對這個 host 做 helm registry login＋建租戶 pull secret
+  username: "WOOWTECH"
+  existingSecret: paas-operator-registry     # key registry-password = GHCR PAT（read:packages）
+  existingSecretKey: registry-password
+pvcCleanup:
+  enabled: true
+nodeSelector: {}                       # 不要釘筆電；operator 很小，隨便排
+resources:
+  requests: { cpu: 50m, memory: 256Mi }
+  limits: { cpu: "1", memory: 1Gi }

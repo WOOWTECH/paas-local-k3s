@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <!-- 把 workspace 頁面上寫死的 Smart Home 與 Security Access 兩個區塊整段拿掉（兩個 section 共用同一個 class，
+         第一條 xpath 移掉第一個之後，第二條就命中原本的第二個）。建立用的 modal 留著不影響（t-if 永遠 false）。 -->
+    <t t-name="woow_paas_platform.WorkspaceDetailPage" t-inherit="woow_paas_platform.WorkspaceDetailPage" t-inherit-mode="extension">
+        <xpath expr="//section[@class='o_woow_smart_homes_section']" position="replace"/>
+        <xpath expr="//section[@class='o_woow_smart_homes_section']" position="replace"/>
+    </t>
+</templates>

@@ -1,0 +1,79 @@
+# 平台 Odoo（lab）— chart oci://ghcr.io/woowtech/charts/woow-odoo 0.2.27 platform profile
+# 對照 paas-app-bundle-cd/paas-odoo-platform/values-prod.yaml。密鑰三個必填（credentials.*）用 --set-file 或另一份不進 git 的 values 給。
+profile: platform
+replicas: 1                            # 首次安裝先 --set replicas=0 --set cron.replicas=0，跑完 jobs/platform-init.yaml 再升回 1
+upgradeGate:
+  incremental: true
+image:
+  registry: ghcr.io
+  repository: woowtech/paas-odoo-official
+  tag: "20261114.0636"
+  digest: "sha256:ad7c4a31d24530cfc9cf08e36ec520cb2a61532c51968c419c6153be98b3895b"   # 必填；init Job 預寫的 upgrade_done.digest 要等於這個
+  pullPolicy: IfNotPresent
+imagePullSecrets:
+  - name: ghcr-registry
+resources:                              # 本機節點 4GB：prod 的 4Gi/8Gi 壓到 1.5Gi/3Gi
+  requests: { cpu: "500m", memory: 1536Mi }
+  limits: { cpu: "3", memory: 3Gi }
+persistence:
+  storageClass: local-path
+  size: 10Gi
+  accessMode: ReadWriteOnce
+conf:
+  emailFrom: "noreply@lab.woowtech.io"
+  workers: 2                            # prod 6；每個 worker VMS 約 2.5G，4GB 節點只能 2
+  limitTimeCpu: 600
+  limitTimeReal: 1200
+  limitTimeRealCron: 1800               # platform cutover gate：≥1800
+  dbMaxconn: 6
+  dbMaxconnGevent: 16
+  proxyMode: true
+cron:
+  replicas: 1
+  maxCronThreads: 3                     # gate：≥3
+  dbMaxconn: 11                         # 3×N+2
+  resources:
+    requests: { cpu: 100m, memory: 768Mi }
+    limits: { cpu: "1", memory: 2Gi }
+ingress:                                # 本機平台入口：Cloudflare tunnel 規則 paas-lab.woowtech.io → traefik → 這個 Ingress
+  enabled: true
+  className: traefik
+  hosts:
+    - host: paas-lab.woowtech.io
+networkPolicy:
+  enabled: true
+  traefik:
+    namespace: kube-system
+    podSelector:
+      app.kubernetes.io/name: traefik
+  operator:
+    podSelector:
+      app.kubernetes.io/name: paas-operator
+  mcpOdoo:
+    enabled: false
+postgres:
+  image:
+    registry: ghcr.io
+    repository: woowtech/paas-postgres
+    tag: "17.11-20260928.1549"
+    digest: "sha256:dbd1fed8882043f45bf759e8f7c73092505ef0afef7a23a93b177e6f7c2c840f"
+  database: woow_lab
+  extensions:
+    vector: true                        # paas-postgres 有 pgvector；fresh install 直接開
+  persistence:
+    storageClass: local-path
+    size: 10Gi
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: "1", memory: 1Gi }
+backup:
+  enabled: true
+  persistence:
+    storageClass: local-path
+    size: 20Gi
+restore:
+  enabled: false
+# credentials:                          # 不進 git —— values/secrets.lab.yaml（gitignore）
+#   postgresPassword: …
+#   odooPassword: …
+#   adminPasswd: …

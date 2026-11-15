@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- noupdate=0：每次 -u 都重套（上游 seed 也是 noupdate=0，會先洗回預設，本模組後載入 ⇒ 我們的值贏） -->
+    <data noupdate="0">
+        <!-- 隱藏 Home Connect（Smart Home）與 Security Access：停用唯一的兩筆範本，前台建不出來 -->
+        <record id="woow_paas_platform.smart_home_home_assistant" model="woow_paas_platform.smart_home_template">
+            <field name="is_active" eval="False"/>
+        </record>
+        <record id="woow_paas_platform.security_access_default" model="woow_paas_platform.security_access_template">
+            <field name="is_active" eval="False"/>
+        </record>
+
+        <!-- 本機叢集只有 local-path -->
+        <record id="lab_storage_class" model="ir.config_parameter">
+            <field name="key">woow_paas_platform.storage_class_name</field>
+            <field name="value">local-path</field>
+        </record>
+
+        <!-- 6 個範本的 chart／image 座標改指 ghcr.io；其餘範本 is_hidden -->
+        <function model="woow_paas_platform.cloud_app_template" name="_lab_apply_registry_overrides"/>
+    </data>
+</odoo>

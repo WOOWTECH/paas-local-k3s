@@ -1,0 +1,9 @@
+# source@digest -> dest (ghcr.io/woowtech/<name>:<tag>)；digest 以 2026-11-15 正式站／seed 為準
+jcr-prod.woowtech.io/woow-paas-docker-local/paas-odoo-official:20261114.0636@sha256:ad7c4a31d24530cfc9cf08e36ec520cb2a61532c51968c419c6153be98b3895b ghcr.io/woowtech/paas-odoo-official:20261114.0636
+jcr-prod.woowtech.io/woow-paas-docker-local/paas-operator:mcp-waf-merged-fe2efc0b@sha256:488dab7d8273d3b946bd92c1e238f8a41307da5859f02ce3163f6e0e825073a3 ghcr.io/woowtech/paas-operator:mcp-waf-merged-fe2efc0b
+jcr-prod.woowtech.io/woow-paas-docker-local/paas-postgres:17.11-20260928.1549@sha256:dbd1fed8882043f45bf759e8f7c73092505ef0afef7a23a93b177e6f7c2c840f ghcr.io/woowtech/paas-postgres:17.11-20260928.1549
+jcr-prod.woowtech.io/woow-paas-docker-local/cloud-odoo:20261108.0727@sha256:a49bfc8cc912314826a60e62d7c12b672cc19726433c6b6ac3998ef969863e1b ghcr.io/woowtech/cloud-odoo:20261108.0727
+jcr-prod.woowtech.io/woow-paas-docker-local/litellm:20261024.0943@sha256:87900caf08de32ee80858d98428ee6fb4aed369482d6327109dde1f7c6d6395b ghcr.io/woowtech/litellm:20261024.0943
+jcr-prod.woowtech.io/woow-paas-docker-local/emqx:20261002.0528@sha256:8b92a101d1a1642a191507b9133c46aad095bb64300dba1770108a2c7261b11a ghcr.io/woowtech/emqx:20261002.0528
+jcr-prod.woowtech.io/woow-paas-docker-local/ngrok:20261002.0258@sha256:4147f33ead67712d642fde29af4a9e258d7a937ef97be146397b7e2a2e8e8dd1 ghcr.io/woowtech/ngrok:20261002.0258
+jcr-prod.woowtech.io/woow-paas-docker-local/n8n:20261015.2215@sha256:371dd463f02e8c35a4bc5aaf9855fc4cfec1babab97e5a02a1e31923a2ec8f5a ghcr.io/woowtech/n8n:20261015.2215

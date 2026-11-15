@@ -1,0 +1,13 @@
+# lab tunnel connector — chart：paas-app-bundle-cd/cloudflare-ha/chart（vendored cloudflare-tunnel-remote 0.1.2-woow.1）
+# 安裝到 ns paas-stg-cloudflare-system（operator paasEnv=stg 推導的 cloudflared ns；租戶 baseline NP 的 allow-cloudflared 看這個 ns）
+# tunnel token 不進 git：--set cloudflare.tunnel_token=$(...) 或 existing secret
+image:
+  tag: "2026.7.3"
+replicaCount: 1
+resources:
+  requests: { cpu: 50m, memory: 64Mi }
+  limits: { cpu: 500m, memory: 256Mi }
+readinessProbe:
+  enabled: true
+pdb:
+  enabled: false

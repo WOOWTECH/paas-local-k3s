@@ -1,0 +1,103 @@
+# 平台 DB 一次性初始化（woow-odoo chart 的 platform profile 不做 fresh install：bootstrap 在 DB 不存在時 exit 3）。
+# 前提：woow-odoo platform release `paas-odoo-platform` 已以 replicas=0、cron.replicas=0 安裝（只有 PG 在跑），
+#       Secret paas-odoo-platform-credentials／paas-odoo-platform-odoo-conf 與 PVC paas-odoo-platform-data 已由 chart 建出。
+# 另需兩個手動 Secret：paas-operator-secret（api-key）、paas-platform-lab-admin（admin-password）。
+# IMAGE 與 IMAGE_DIGEST 必須與 values/woow-odoo.platform.lab.yaml 的 image.* 完全相同（升級閘比對 marker.digest）。
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: platform-init
+  namespace: paas-system
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        fsGroup: 101
+      imagePullSecrets:
+        - name: ghcr-registry
+      containers:
+        - name: init
+          image: ghcr.io/woowtech/paas-odoo-official:20261114.0636@sha256:ad7c4a31d24530cfc9cf08e36ec520cb2a61532c51968c419c6153be98b3895b
+          securityContext:
+            runAsUser: 100
+            runAsGroup: 101
+          env:
+            - { name: PGHOST, value: paas-odoo-platform-postgresql }
+            - { name: PGPORT, value: "5432" }
+            - { name: DB, value: woow_lab }
+            - { name: IMAGE_DIGEST, value: "sha256:ad7c4a31d24530cfc9cf08e36ec520cb2a61532c51968c419c6153be98b3895b" }
+            - { name: OPERATOR_URL, value: "http://paas-operator.paas-system.svc.cluster.local" }
+            - { name: PAAS_DOMAIN, value: "woowtech.io" }
+            - { name: NS_PREFIX, value: "paas-ws-lab-" }
+            - { name: BASE_URL, value: "https://paas-lab.woowtech.io" }
+            - name: PGSUPERUSER_PASSWORD
+              valueFrom: { secretKeyRef: { name: paas-odoo-platform-credentials, key: postgres-password } }
+            - name: ODOO_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: paas-odoo-platform-credentials, key: odoo-password } }
+            - name: OPERATOR_API_KEY
+              valueFrom: { secretKeyRef: { name: paas-operator-secret, key: api-key } }
+            - name: ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: paas-platform-lab-admin, key: admin-password } }
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              log(){ printf '[platform-init] %s\n' "$*" >&2; }
+              until pg_isready -q -h "$PGHOST" -p "$PGPORT"; do sleep 2; done
+              # ① 角色與 DB：與 chart bootstrap ② 同形狀（ENCODING UTF8、LC_COLLATE C、template0、OWNER odoo、pg_trgm／vector）
+              export PGPASSWORD="$PGSUPERUSER_PASSWORD"
+              psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -v pw="$ODOO_DB_PASSWORD" <<'SQL'
+              DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='odoo') THEN CREATE ROLE odoo LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE; END IF; END $$;
+              SQL
+              psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -c "ALTER ROLE odoo WITH PASSWORD '$(printf %s "$ODOO_DB_PASSWORD" | sed "s/'/''/g")'"
+              if ! psql -X -tA -U postgres -d postgres -c "SELECT 1 FROM pg_database WHERE datname='$DB'" | grep -q 1; then
+                psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -c "CREATE DATABASE \"$DB\" ENCODING 'UTF8' LC_COLLATE 'C' TEMPLATE template0 OWNER odoo"
+              fi
+              psql -X -v ON_ERROR_STOP=1 -U postgres -d "$DB" -c "CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION IF NOT EXISTS vector;"
+              # ② 首裝：base＋web＋woow_paas_platform（相依 36 個 addon 在 image 的 /opt/woow/addons；conf 來自 chart Secret）
+              export PGPASSWORD="$ODOO_DB_PASSWORD"
+              if ! psql -X -tA -U odoo -d "$DB" -c "SELECT to_regclass('public.ir_module_module') IS NOT NULL" | grep -q t; then
+                log "odoo -i woow_paas_platform (fresh)"
+                odoo -c /etc/odoo/odoo.conf -d "$DB" -i base,web,woow_paas_platform --stop-after-init --no-http --without-demo=all --load-language=zh_TW
+              else
+                log "DB already initialised; skipping -i"
+              fi
+              # ③ 預寫升級閘 marker：{digest, core_date}；core_date 取法與 chart lib.sh 一致（見 README 註）
+              core=$(dpkg-query -W -f='${Version}' odoo 2>/dev/null || true)
+              log "marker digest=$IMAGE_DIGEST core_date=$core"
+              psql -X -v ON_ERROR_STOP=1 -U odoo -d "$DB" -v marker="{\"digest\":\"$IMAGE_DIGEST\",\"core_date\":\"$core\"}" <<'SQL'
+              INSERT INTO ir_config_parameter (key, value, create_uid, create_date, write_uid, write_date)
+              VALUES ('woow_paas_platform.upgrade_done', :'marker', 1, NOW(), 1, NOW())
+              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, write_date = NOW();
+              SQL
+              # ④ 平台參數 seed（照 .sandbox/post-create.sh 的形狀）
+              psql -X -v ON_ERROR_STOP=1 -U odoo -d "$DB" \
+                -v op_url="$OPERATOR_URL" -v op_key="$OPERATOR_API_KEY" -v dom="$PAAS_DOMAIN" -v nsp="$NS_PREFIX" -v base="$BASE_URL" <<'SQL'
+              INSERT INTO ir_config_parameter (key, value, create_uid, create_date, write_uid, write_date) VALUES
+                ('woow_paas_platform.operator_url', :'op_url', 1, NOW(), 1, NOW()),
+                ('woow_paas_platform.operator_api_key', :'op_key', 1, NOW(), 1, NOW()),
+                ('woow_paas_platform.paas_domain', :'dom', 1, NOW(), 1, NOW()),
+                ('woow_paas_platform.namespace_prefix', :'nsp', 1, NOW(), 1, NOW()),
+                ('woow_paas_platform.deploy_env', 'stg', 1, NOW(), 1, NOW()),
+                ('woow_paas_platform.storage_class_name', 'local-path', 1, NOW(), 1, NOW()),
+                ('woow_paas_platform.topup_payment_enabled', 'False', 1, NOW(), 1, NOW()),
+                ('woow_paas_platform.default_enable_agent_runtime', 'False', 1, NOW(), 1, NOW()),
+                ('web.base.url', :'base', 1, NOW(), 1, NOW()),
+                ('web.base.url.freeze', 'True', 1, NOW(), 1, NOW())
+              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, write_date = NOW(), write_uid = 1;
+              SQL
+              # ⑤ 管理員密碼（odoo shell，同一交易）
+              printf '%s\n' "u = env['res.users'].browse(2); u.write({'login': 'admin', 'password': __import__('os').environ['ADMIN_PASSWORD']}); env.cr.commit(); print('admin set')" \
+                | odoo shell -c /etc/odoo/odoo.conf -d "$DB" --no-http
+              log "done"
+          volumeMounts:
+            - { name: odoo-conf, mountPath: /etc/odoo/odoo.conf, subPath: odoo.conf }
+            - { name: data, mountPath: /var/lib/odoo }
+      volumes:
+        - name: odoo-conf
+          secret: { secretName: paas-odoo-platform-odoo-conf, defaultMode: 0440 }
+        - name: data
+          persistentVolumeClaim: { claimName: paas-odoo-platform-data }
