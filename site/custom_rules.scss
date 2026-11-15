@@ -1,0 +1,160 @@
+// woowtech Cloud — 品牌規則（依 woowtech Brand Prompt Library v2）
+// 這份是網站的自訂 SCSS：網站 → 編輯 → 主題，開發者模式下「HTML／SCSS 編輯器」裡的 user_custom_rules.scss 可以直接改。
+// 原則：藍 #6183FC 只當點綴；白／灰當底；圓角 20px（硬規則）；陰影柔和；不用 emoji。
+
+:root {
+    --ww-blue: #6183FC;
+    --ww-blue-700: #3F63E8;
+    --ww-blue-050: #EEF2FF;
+    --ww-gray: #EFF1F5;
+    --ww-deep-gray: #646262;
+    --ww-black: #212121;
+    --ww-orange: #E66D3E;
+    --ww-radius-sm: 12px;
+    --ww-radius: 20px;
+    --ww-radius-lg: 28px;
+    --ww-shadow-sm: 0 2px 8px rgba(33, 33, 33, .06);
+    --ww-shadow-md: 0 10px 28px rgba(33, 33, 33, .08);
+    --ww-shadow-lg: 0 22px 52px rgba(33, 33, 33, .12);
+    --ww-shadow-float: 0 26px 60px -18px rgba(97, 131, 252, .28);
+    --ww-ease: cubic-bezier(.4, 0, .2, 1);
+}
+
+// 字型：英文 Outfit（內文）／Poppins（標題），中文退到 Noto Sans TC（品牌指定的文鼎字型需授權，先用替代字）
+body {
+    font-family: 'Outfit', 'Noto Sans TC', sans-serif;
+}
+h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6,
+.display-1, .display-2, .display-3, .display-4, .display-5, .display-6 {
+    font-family: 'Poppins', 'Noto Sans TC', sans-serif;
+    letter-spacing: -.02em;
+}
+.navbar, .btn {
+    font-family: 'Poppins', 'Noto Sans TC', sans-serif;
+}
+
+// 小標（英文 kicker）；手寫字只給一個暖詞，中文不要用
+.ww-kicker {
+    font-family: 'Poppins', sans-serif;
+    font-size: .8125rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    color: var(--ww-blue);
+    margin-bottom: .5rem;
+}
+.ww-script {
+    font-family: 'Yellowtail', cursive;
+    font-size: 1.875rem;
+    line-height: 1.2;
+    color: var(--ww-orange);
+    margin-bottom: .25rem;
+}
+
+// 圓角 20px
+#wrapwrap .s_card, #wrapwrap .card {
+    border-radius: var(--ww-radius);
+}
+#wrapwrap img.rounded {
+    border-radius: var(--ww-radius) !important;
+}
+
+// 毛玻璃卡：只放在照片或色塊上
+.ww-glass {
+    background: rgba(255, 255, 255, .7);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, .9);
+    border-radius: var(--ww-radius);
+    box-shadow: var(--ww-shadow-md);
+}
+
+// 浮動框：一定要有陰影
+.ww-float {
+    border-radius: var(--ww-radius) !important;
+    box-shadow: var(--ww-shadow-float);
+}
+
+// 圖示磚：Material Design Icons 放在淡藍圓角磚上
+.ww-icon-tile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    background: var(--ww-blue-050);
+    img {
+        width: 28px;
+        height: 28px;
+    }
+}
+
+// 卡片：細邊框，滑過浮起
+#wrapwrap .s_card {
+    border: 1px solid rgba(33, 33, 33, .08);
+    box-shadow: var(--ww-shadow-sm);
+    transition: transform .22s var(--ww-ease), box-shadow .22s var(--ww-ease);
+    &:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--ww-shadow-lg);
+    }
+}
+.ww-count {
+    font-family: 'Poppins', sans-serif;
+    font-size: .875rem;
+    font-weight: 600;
+    color: var(--ww-blue);
+    margin-bottom: 0;
+}
+
+// 按鈕：按下縮一點
+.btn {
+    transition: transform .22s var(--ww-ease), background-color .22s var(--ww-ease), border-color .22s var(--ww-ease);
+    &:active {
+        transform: scale(.97);
+    }
+}
+
+// 勾選清單（圖示是 MDI check-circle）
+.ww-checklist {
+    padding-left: 0;
+    list-style: none;
+    li {
+        position: relative;
+        padding-left: 2rem;
+        margin-bottom: .6rem;
+    }
+    li::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: .2rem;
+        width: 1.25rem;
+        height: 1.25rem;
+        background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236183FC'><path d='M12 2C6.5 2 2 6.5 2 12S6.5 22 12 22 22 17.5 22 12 17.5 2 12 2M10 17L5 12L6.41 10.59L10 14.17L17.59 6.58L19 8L10 17Z'/></svg>") no-repeat center / contain;
+    }
+}
+
+// 數字與步驟：品牌藍、Poppins
+#wrapwrap .s_numbers .s_number,
+#wrapwrap .s_key_benefits .display-3-fs {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+    color: var(--ww-blue);
+}
+
+// 細分隔線
+#wrapwrap hr {
+    border-color: rgba(33, 33, 33, .08);
+    opacity: 1;
+}
+
+// 頁首：白底加一條細線
+header#top .navbar {
+    border-bottom: 1px solid rgba(33, 33, 33, .06);
+}
+
+// 頁尾不顯示「由 Odoo 驅動」
+.o_brand_promotion {
+    display: none !important;
+}

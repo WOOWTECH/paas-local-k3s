@@ -93,7 +93,8 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - **不搬**：自訂網域 gateway（要動 woowtech.io zone 的 Cloudflare for SaaS 設定，跟正式站共用，會影響正式站自訂網域）；
   agent runtime（要 LLM 金鑰＋operator 從受 Cloudflare Access 保護的 Gitea 抓 chart）；node-mss-clamp（只有 HAOS 需要，HAOS 已因磁碟隱藏）。
 
-## 已知問題與 lab 專屬調整（2026-11-15 實測）
+## 首頁：woowtech Cloud 一頁式介紹（2026-11-16）
+- overlay 18.0.1.0.12 加相依 `website`（平台裝了 Odoo 網站模組；正式站平台本來就有）。網站內容與修改方式見 `site/README.md`。\n\n## 已知問題與 lab 專屬調整（2026-11-15 實測）
 - **TUF 節點的 pod 網路不通**：該節點上的 pod 連 CoreDNS 都逾時（叢集既有問題，需上機查 flannel／防火牆）。
   operator `config.tenantAvoidNodes` 讓租戶 pod 避開 TUF 與筆電；平台本身用 post-renderer 的 nodeAffinity 避開。
 - **operator CPU**：kubectl apply 每次約 2.9 CPU 秒（本叢集 245 種 API 資源）；limits 1 核時建 namespace 34 秒 > 平台寫死的 30 秒 timeout。現為 3 核。
@@ -128,4 +129,4 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
   HA 完成初始設定；HAOS 磁碟不足 → 隱藏。測試用密碼依使用者要求設為同一組簡單密碼（MCP Headscale 除外）。
 - 2026-11-15 22:30–23:30 第四批：停權頁、Woow MCP gateway（租戶 token → MCP initialize／tools/list 5 個工具／list_workspaces 只回自己的工作區／撤銷後 401）、
   paas-netpol（無關 pod 連不到 operator、平台照常）；overlay 18.0.1.0.10。
-- 2026-11-16 HAOS 移除（overlay 18.0.1.0.11；殘留 DataVolume 刪除、cluster5 釋出 32GiB 的 PV）；報告改正正式站使用數（排除 staging）。
+- 2026-11-16 HAOS 移除（overlay 18.0.1.0.11；殘留 DataVolume 刪除、cluster5 釋出 32GiB 的 PV）；報告改正正式站使用數（排除 staging）。\n- 2026-11-16 平台裝 website（overlay 18.0.1.0.12），建立 woowtech Cloud 一頁式首頁（`site/`）；匿名／手機／登入頁／編輯器都實測過。\n
