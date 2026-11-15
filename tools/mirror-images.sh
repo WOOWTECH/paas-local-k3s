@@ -4,7 +4,9 @@
 set -euo pipefail
 KUBE_CONTEXT=${KUBE_CONTEXT:-default}; NS=paas-local-infra; TAILNET_IP=${TAILNET_IP:-100.93.200.36}
 # shellcheck disable=SC1090
-source ~/woow_tech_credential/jcr-readonly.env; source ~/woow_tech_credential/ghcr-pat.env
+source ~/woow_tech_credential/jcr-readonly.env
+[[ -f ~/woow_tech_credential/ghcr-pat.env ]] && source ~/woow_tech_credential/ghcr-pat.env
+GHCR_PAT=${GHCR_PAT:-$(gh auth token)}  # 2026-11-15：預設用 gh CLI 的 token（write:packages）
 : "${JCR_USER:?}" "${JCR_PASS:?}" "${GHCR_PAT:?}"
 K=(kubectl --context "$KUBE_CONTEXT")
 "${K[@]}" create ns "$NS" --dry-run=client -o yaml | "${K[@]}" apply -f - >/dev/null
@@ -31,12 +33,15 @@ spec:
           args:
             - |
               set -euo pipefail
+              # images.txt 的來源寫成 repo:tag@sha256:… 方便人看；skopeo 不接受 tag+digest 並存，所以拆成 repo@digest 來拉
               grep -v '^#' /work/images.txt | grep -v '^\s*$' | while read -r src dst; do
-                echo "== \$src -> \$dst"
-                skopeo copy --preserve-digests --retry-times 3 \
+                digest="\${src#*@}"; repo_tag="\${src%%@*}"; repo="\${repo_tag%%:*}"
+                echo "== \$repo@\$digest -> \$dst"
+                skopeo copy --preserve-digests --multi-arch all --retry-times 3 \
                   --src-creds "\$(cat /creds/src)" --dest-creds "\$(cat /creds/dst)" \
-                  "docker://\$src" "docker://\$dst"
-                skopeo inspect --creds "\$(cat /creds/dst)" "docker://\$dst" --format '{{.Digest}}' | sed "s/^/   dest digest: /"
+                  "docker://\$repo@\$digest" "docker://\$dst"
+                got="\$(skopeo inspect --creds "\$(cat /creds/dst)" --format '{{.Digest}}' "docker://\$dst")"
+                if [[ "\$got" == "\$digest" ]]; then echo "   OK dest digest \$got"; else echo "   DIGEST MISMATCH expected \$digest got \$got"; exit 1; fi
               done
           volumeMounts:
             - { name: creds, mountPath: /creds, readOnly: true }

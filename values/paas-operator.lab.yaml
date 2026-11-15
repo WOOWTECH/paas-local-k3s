@@ -26,7 +26,7 @@ cloudflare:
   domain: "woowtech.io"                # 使用者決定直接用根域（與 prod/stg 同 zone 同層）
   accountId: "9c27f623ee596e0b67be56263bcb1974"
   zoneId: "4d12cea85ec6022e42b72015c43e5513"
-  tunnelId: "TODO-lab-tunnel-id"       # 用 CF token 建 tunnel paas-lab 後填入
+  tunnelId: "7ff55c23-213e-4077-b823-a7e1744078b8"       # 用 CF token 建 tunnel paas-lab 後填入
   existingSecret: paas-operator-cloudflare   # key cloudflare-api-token
   existingSecretKey: cloudflare-api-token
 customDomains:

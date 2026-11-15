@@ -4,7 +4,8 @@ set -euo pipefail
 GITEA_HOST=git-prod.woowtech.io; TAILNET_IP=${TAILNET_IP:-100.93.200.36}
 GITEA_TOKEN=$(grep -E "^\s*token:" ~/.config/tea/config.yml | head -1 | awk '{print $2}' | tr -d '"'"'")
 # shellcheck disable=SC1090
-source ~/woow_tech_credential/ghcr-pat.env; : "${GHCR_PAT:?}"
+[[ -f ~/woow_tech_credential/ghcr-pat.env ]] && source ~/woow_tech_credential/ghcr-pat.env
+GHCR_PAT=${GHCR_PAT:-$(gh auth token)}; : "${GHCR_PAT:?}"  # 2026-11-15：預設用 gh CLI 的 token（write:packages）
 CHARTS=("woow-odoo 0.2.27" "woow-odoo 0.2.26" "paas-operator 0.1.36" "litellm 0.3.16" "emqx 0.1.11")
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
 printf '%s' "$GHCR_PAT" | helm registry login ghcr.io -u WOOWTECH --password-stdin

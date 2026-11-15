@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 # 在 Gitea 上為 6 個 repo 建立 push mirror → GitHub（private）。需要：
 #   ~/.config/tea/config.yml 的 Gitea token（toypark1234，對這些 repo 有 admin）
-#   ~/woow_tech_credential/github-mirror-pat.env：GITHUB_MIRROR_PAT=…（fine-grained，Contents RW）
+#   GitHub 寫入權：預設取 `gh auth token`；或 ~/woow_tech_credential/github-mirror-pat.env：GITHUB_MIRROR_PAT=…（fine-grained，Contents RW）
 # Gitea 公開網址被 Cloudflare Access 擋 → 用 --resolve 直打 woow-k3s 節點 tailnet IP（憑證是正式 LE，可驗）。
 set -euo pipefail
 GITEA_HOST=git-prod.woowtech.io; TAILNET_IP=${TAILNET_IP:-100.93.200.36}
 GITEA_TOKEN=$(grep -E "^\s*token:" ~/.config/tea/config.yml | head -1 | awk '{print $2}' | tr -d '"'"'")
-# shellcheck disable=SC1090
-source ~/woow_tech_credential/github-mirror-pat.env
+# 2026-11-15 使用者決定：直接用這台機器 gh CLI 已登入的 token（repo scope）；若日後改用小鑰匙，放 github-mirror-pat.env 即優先採用
+if [[ -f ~/woow_tech_credential/github-mirror-pat.env ]]; then
+  # shellcheck disable=SC1090
+  source ~/woow_tech_credential/github-mirror-pat.env
+fi
+GITHUB_MIRROR_PAT=${GITHUB_MIRROR_PAT:-$(gh auth token)}
 : "${GITHUB_MIRROR_PAT:?GITHUB_MIRROR_PAT missing}"
 API="https://${GITEA_HOST}/api/v1"; CURL=(curl -sS -m 30 --resolve "${GITEA_HOST}:443:${TAILNET_IP}" -H "Authorization: token ${GITEA_TOKEN}" -H "Content-Type: application/json")
 # gitea_owner/repo  github_repo

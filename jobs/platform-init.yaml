@@ -1,7 +1,8 @@
 # 平台 DB 一次性初始化（woow-odoo chart 的 platform profile 不做 fresh install：bootstrap 在 DB 不存在時 exit 3）。
 # 前提：woow-odoo platform release `paas-odoo-platform` 已以 replicas=0、cron.replicas=0 安裝（只有 PG 在跑），
 #       Secret paas-odoo-platform-credentials／paas-odoo-platform-odoo-conf 與 PVC paas-odoo-platform-data 已由 chart 建出。
-# 另需兩個手動 Secret：paas-operator-secret（api-key）、paas-platform-lab-admin（admin-password）。
+# 另需兩個手動 Secret：paas-operator-secret（api-key）、paas-platform-lab-admin（admin-password）；
+# 以及 ConfigMap woow-paas-platform-lab-addon（platform release 用 tools/post-render-lab-addon.py 安裝時一併建立）。
 # IMAGE 與 IMAGE_DIGEST 必須與 values/woow-odoo.platform.lab.yaml 的 image.* 完全相同（升級閘比對 marker.digest）。
 apiVersion: batch/v1
 kind: Job
@@ -60,8 +61,8 @@ spec:
               # ② 首裝：base＋web＋woow_paas_platform（相依 36 個 addon 在 image 的 /opt/woow/addons；conf 來自 chart Secret）
               export PGPASSWORD="$ODOO_DB_PASSWORD"
               if ! psql -X -tA -U odoo -d "$DB" -c "SELECT to_regclass('public.ir_module_module') IS NOT NULL" | grep -q t; then
-                log "odoo -i woow_paas_platform (fresh)"
-                odoo -c /etc/odoo/odoo.conf -d "$DB" -i base,web,woow_paas_platform --stop-after-init --no-http --without-demo=all --load-language=zh_TW
+                log "odoo -i woow_paas_platform,woow_paas_platform_lab (fresh)"
+                odoo -c /etc/odoo/odoo.conf -d "$DB" -i base,web,woow_paas_platform,woow_paas_platform_lab --stop-after-init --no-http --without-demo=all --load-language=zh_TW
               else
                 log "DB already initialised; skipping -i"
               fi
@@ -99,8 +100,20 @@ spec:
           volumeMounts:
             - { name: odoo-conf, mountPath: /etc/odoo/odoo.conf, subPath: odoo.conf }
             - { name: data, mountPath: /var/lib/odoo }
+            # overlay addon：與 tools/post-render-lab-addon.py 掛的同一個 ConfigMap、同一路徑（image 內建 addons 目錄下）
+            - { name: lab-addon, mountPath: /opt/woow/addons/woow_paas_platform_lab, readOnly: true }
       volumes:
         - name: odoo-conf
           secret: { secretName: paas-odoo-platform-odoo-conf, defaultMode: 0440 }
         - name: data
           persistentVolumeClaim: { claimName: paas-odoo-platform-data }
+        - name: lab-addon
+          configMap:
+            name: woow-paas-platform-lab-addon      # 由 helm release（post-renderer）建立；key = 路徑把 / 換成 .
+            items:
+              - { key: __init__.py, path: __init__.py }
+              - { key: __manifest__.py, path: __manifest__.py }
+              - { key: data.lab_overrides.xml, path: data/lab_overrides.xml }
+              - { key: models.__init__.py, path: models/__init__.py }
+              - { key: models.cloud_app_template_lab.py, path: models/cloud_app_template_lab.py }
+              - { key: static.src.paas.workspace_hide_sections.xml, path: static/src/paas/workspace_hide_sections.xml }
