@@ -1,0 +1,121 @@
+# 停權說明頁（odoo-addons/woow_paas_platform#1563）。nginx 只送靜態頁，無狀態、無 API 權限。
+# lab：避開 TUF（pod 網路不通，connector 連不到）與筆電
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paas-suspended-page
+  namespace: paas-stg-cloudflare-system
+  labels:
+    app.kubernetes.io/name: paas-suspended-page
+    app.kubernetes.io/part-of: paas-platform
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: paas-suspended-page
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: paas-suspended-page
+        app.kubernetes.io/part-of: paas-platform
+      annotations:
+        paas.woowtech.io/config-rev: '1'
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: NotIn
+                values:
+                - woowtechcluster1-aorus-15p-xd
+                - woowtech-ai-coder-asus-tuf-gaming-f15-fx507zu4-fx507zu4
+      containers:
+      - name: nginx
+        image: docker.io/nginxinc/nginx-unprivileged:1.27-alpine@sha256:65e3e85dbaed8ba248841d9d58a899b6197106c23cb0ff1a132b7bfe0547e4c0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: health
+          containerPort: 8081
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: health
+          periodSeconds: 10
+          timeoutSeconds: 2
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: health
+          periodSeconds: 30
+          timeoutSeconds: 2
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: 5m
+            memory: 16Mi
+            ephemeral-storage: 16Mi
+          limits:
+            cpu: 200m
+            memory: 64Mi
+            ephemeral-storage: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: main-conf
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+          readOnly: true
+        - name: conf
+          mountPath: /etc/nginx/conf.d
+          readOnly: true
+        - name: page
+          mountPath: /usr/share/nginx/suspended
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: main-conf
+        configMap:
+          name: paas-suspended-page
+          items:
+          - key: nginx.conf
+            path: nginx.conf
+      - name: conf
+        configMap:
+          name: paas-suspended-page
+          items:
+          - key: default.conf
+            path: default.conf
+      - name: page
+        configMap:
+          name: paas-suspended-page
+          items:
+          - key: index.html
+            path: index.html
+      - name: tmp
+        emptyDir:
+          sizeLimit: 32Mi

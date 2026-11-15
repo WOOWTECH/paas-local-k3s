@@ -11,3 +11,12 @@ readinessProbe:
   enabled: true
 pdb:
   enabled: false
+# lab：connector 不可排到 TUF（該節點 pod 網路不通，排上去整個 lab 對外就斷）或筆電
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: NotIn
+              values: [woowtechcluster1-aorus-15p-xd, woowtech-ai-coder-asus-tuf-gaming-f15-fx507zu4-fx507zu4]

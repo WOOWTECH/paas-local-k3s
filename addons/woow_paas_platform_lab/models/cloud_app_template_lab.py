@@ -97,8 +97,9 @@ TEMPLATE_VALUE_FIXES = {
                                   "limits": {"cpu": "2", "memory": "3Gi"}}},
     "hermes-agent": {"agent": {"resources": {"requests": {"cpu": "250m", "memory": "1Gi"},
                                              "limits": {"cpu": "2", "memory": "3Gi"}}}},
-    # HAOS VM 範本是 2 核 4Gi：4GB 節點放不下（virt-launcher 還有額外開銷），壓到 HAOS 最低建議的 2Gi
-    "haos": {"vm": {"memory": "2Gi"}},
+    # HAOS VM 範本是 2 核 4Gi：4GB 節點放不下。2Gi 時 virt-launcher 要 2428Mi（多約 380Mi 開銷），
+    # 其他測試服務跑著時沒有任何節點空得出來（2026-11-15 實測最大空間約 1.8Gi）→ 壓到 1280Mi（低於 HAOS 建議的 2GB，只夠開機與初始設定）
+    "haos": {"vm": {"memory": "1280Mi"}},
 }
 
 

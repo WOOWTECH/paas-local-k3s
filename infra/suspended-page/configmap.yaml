@@ -1,0 +1,127 @@
+# 停權說明頁的 nginx 設定與頁面（odoo-addons/woow_paas_platform#1563）。
+# ⚠ 改 nginx.conf／default.conf 後要把 deployment.yaml 的 paas.woowtech.io/config-rev 加 1（見 fleet.yaml）。
+# ⚠ 本檔不得出現連續兩個大括號（Fleet 的 Go template 前處理會吃掉，含註解與 CSS）。
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: paas-suspended-page
+  namespace: paas-stg-cloudflare-system
+  labels:
+    app.kubernetes.io/name: paas-suspended-page
+    app.kubernetes.io/part-of: paas-platform
+data:
+  # 取代 image 內建的 /etc/nginx/nginx.conf：內建是 worker_processes auto，在 48 核節點上會開近百個
+  # worker；這頁只送一個靜態檔，2 個就夠。pid／temp 一律放 /tmp（容器根目錄唯讀）。
+  nginx.conf: |
+    worker_processes 2;
+    error_log /dev/stderr notice;
+    pid /tmp/nginx.pid;
+
+    events {
+        worker_connections 512;
+    }
+
+    http {
+        client_body_temp_path /tmp/client_temp;
+        proxy_temp_path /tmp/proxy_temp;
+        fastcgi_temp_path /tmp/fastcgi_temp;
+        uwsgi_temp_path /tmp/uwsgi_temp;
+        scgi_temp_path /tmp/scgi_temp;
+        include /etc/nginx/mime.types;
+        default_type application/octet-stream;
+        access_log /dev/stdout;
+        sendfile on;
+        keepalive_timeout 65;
+        include /etc/nginx/conf.d/*.conf;
+    }
+  default.conf: |
+    # 對外（tunnel → Service 8080）：任何 path、任何 method 都回 503＋說明頁。
+    server {
+        listen 8080 default_server;
+        server_name _;
+        server_tokens off;
+        charset utf-8;
+        # 上傳多大都一樣回 503（不要因為 body 太大變成 413）；return 會把 body 讀掉丟棄。
+        client_max_body_size 0;
+
+        location / {
+            return 503;
+        }
+
+        # error_page 走 URI 時 nginx 把非 GET／HEAD 的 method 轉成 GET，POST 也拿得到頁面。
+        # 直接打這個 internal URI 會是 404 ⇒ 第二行再把它轉回 503＋同一頁。
+        error_page 503 /__paas_suspended__.html;
+        error_page 404 =503 /__paas_suspended__.html;
+
+        location = /__paas_suspended__.html {
+            internal;
+            root /usr/share/nginx/suspended;
+            try_files /index.html =500;
+            default_type text/html;
+            add_header Retry-After "3600" always;
+            add_header Cache-Control "no-store" always;
+            add_header X-Robots-Tag "noindex, nofollow" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header Referrer-Policy "no-referrer" always;
+            add_header Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" always;
+        }
+    }
+
+    # 健康檢查只開在 8081（Service 不暴露這個 port），對外的 8080 沒有任何會回 200 的 path。
+    server {
+        listen 8081;
+        server_name _;
+        server_tokens off;
+        access_log off;
+
+        location = /healthz {
+            default_type text/plain;
+            return 200 "ok\n";
+        }
+
+        location / {
+            return 404;
+        }
+    }
+  index.html: |
+    <!doctype html>
+    <html lang="zh-Hant-TW">
+    <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>服務已暫停｜Service suspended</title>
+    <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f4f5f7; color: #1f2933; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; }
+    main { box-sizing: border-box; width: 100%; max-width: 36rem; margin: 1.5rem; padding: 2rem 1.75rem; background: #ffffff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }
+    h1 { margin: 0 0 0.75rem; font-size: 1.4rem; }
+    p { margin: 0.5rem 0; line-height: 1.7; }
+    a { color: #1d4ed8; }
+    .actions { margin-top: 1.25rem; }
+    .btn { display: inline-block; padding: 0.6rem 1.1rem; border-radius: 8px; background: #1d4ed8; color: #ffffff; text-decoration: none; }
+    .en { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e4e7eb; color: #52606d; font-size: 0.95rem; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #111827; color: #e5e7eb; }
+      main { background: #1f2937; box-shadow: none; }
+      a { color: #93c5fd; }
+      .btn { background: #2563eb; color: #ffffff; }
+      .en { color: #9ca3af; border-top-color: #374151; }
+    }
+    </style>
+    </head>
+    <body>
+    <main>
+    <h1>此服務已暫停</h1>
+    <p>此服務已因訂閱到期或欠費暫停。</p>
+    <p>服務擁有者請登入平台 <a href="https://paas-lab.woowtech.io/woow#/billing">/woow</a> 續訂，續訂完成後服務會自動恢復。</p>
+    <p class="actions"><a class="btn" href="https://paas-lab.woowtech.io/woow#/billing">前往帳務頁續訂</a></p>
+    <p>需要協助請聯絡客服：<a href="mailto:support@woowtech.io">support@woowtech.io</a></p>
+    <div class="en" lang="en">
+    <p><strong>This service is suspended</strong> because its subscription has expired or payment is overdue.</p>
+    <p>Service owner: sign in to <a href="https://paas-lab.woowtech.io/woow#/billing">/woow</a> to renew. The service resumes automatically once the renewal is complete.</p>
+    <p>Need help? Contact support: <a href="mailto:support@woowtech.io">support@woowtech.io</a></p>
+    </div>
+    </main>
+    </body>
+    </html>
