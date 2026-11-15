@@ -21,7 +21,10 @@ python3 tools/with-lab-addon-items.py jobs/lab-overlay-update.yaml --configmap "
 "${K[@]}" logs job/lab-overlay-update | grep -E 'woow_paas_platform_lab' | tail -8
 helm --kube-context "$CTX" upgrade paas-odoo-platform oci://ghcr.io/woowtech/charts/woow-odoo --version 0.2.27 -n paas-system \
   -f values/woow-odoo.platform.lab.yaml -f values/secrets.platform.lab.yaml --post-renderer tools/post-render-lab-addon.py --wait --timeout 15m | grep -E '^(STATUS|REVISION)'
-# 只有 Python 改了、檔案清單沒變時 Deployment 不會滾動 → RESTART=1（預設）讓 web／cron 載入新程式
+# RESTART=1（預設）一定要留著，除非這次只改了 data XML：
+#   - Python 改了：web／cron 要重啟才會載入新程式（檔案清單沒變時 Deployment 不會自己滾動）。
+#   - static（OWL 模板／JS／CSS）改了：① 的 -u 會讓 web 立刻重算 asset bundle，但那時 web 看到的還是舊檔
+#     （正式 ConfigMap 在 ② 才更新），算出來的舊 bundle 會被快取住（2026-11-15 實測 RESTART=0 時頁面沒變）。
 if [[ "${RESTART:-1}" == 1 ]]; then
   "${K[@]}" rollout restart deploy/paas-odoo-platform deploy/paas-odoo-platform-cron
   "${K[@]}" rollout status deploy/paas-odoo-platform --timeout=15m
