@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Redis 範本在上游沒有任何訂閱方案（is_active=False、零方案）→ plan_create 必擋（plan 必須屬於範本）。
+         lab 依使用者「先開 6 個」補一個 placeholder 方案，形狀照 PostgreSQL 的 plan_postgresql_monthly（價格同為 99）。 -->
+    <data noupdate="0">
+        <record id="lab_plan_redis_monthly" model="woow.subscription.plan">
+            <field name="name">Redis 月繳（lab）</field>
+            <field name="interval_count">1</field>
+            <field name="interval_unit">month</field>
+            <field name="price">99</field>
+            <field name="cycle_limit">0</field>
+            <field name="is_open_ended" eval="True"/>
+            <field name="trial_length">7</field>
+            <field name="trial_unit">day</field>
+            <field name="customer_can_end" eval="True"/>
+            <field name="service_type">cloud_service</field>
+        </record>
+
+        <record id="lab_product_redis_monthly" model="product.product">
+            <field name="name">Redis 月繳（lab） Subscription</field>
+            <field name="type">service</field>
+            <field name="list_price">99</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="purchase_ok" eval="False"/>
+            <field name="woow_is_subscription" eval="True"/>
+            <field name="woow_subscription_plan_id" ref="lab_plan_redis_monthly"/>
+            <field name="taxes_id" eval="[(6, 0, [])]"/>
+        </record>
+
+        <!-- (4, id)：只加連結、不覆蓋（上游哪天補了 Redis 方案也不會被這裡洗掉） -->
+        <record id="woow_paas_platform.cloud_app_redis" model="woow_paas_platform.cloud_app_template">
+            <field name="subscription_plan_ids" eval="[(4, ref('lab_plan_redis_monthly'))]"/>
+        </record>
+    </data>
+</odoo>

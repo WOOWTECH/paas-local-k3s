@@ -1,0 +1,53 @@
+# overlay addon（woow_paas_platform_lab）改了之後重套一次：odoo -u woow_paas_platform_lab。
+# 前提：先用 tools/post-render-lab-addon.py 重跑 platform 的 helm upgrade，讓 ConfigMap woow-paas-platform-lab-addon 是新的。
+# 跑法：kubectl --context default -n paas-system delete job lab-overlay-update --ignore-not-found; kubectl --context default apply -f jobs/lab-overlay-update.yaml
+# 跑完：kubectl --context default -n paas-system rollout restart deploy/paas-odoo-platform deploy/paas-odoo-platform-cron（讓 web／cron 載入新 Python）
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lab-overlay-update
+  namespace: paas-system
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 1800
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: paas-odoo-platform     # PG NetworkPolicy 放行條件
+        app.kubernetes.io/component: lab-overlay-update    # 不會被任何 Service 選到
+    spec:
+      restartPolicy: Never
+      securityContext:
+        fsGroup: 101
+      imagePullSecrets:
+        - name: ghcr-registry
+      containers:
+        - name: update
+          image: ghcr.io/woowtech/paas-odoo-official:20261114.0636@sha256:ad7c4a31d24530cfc9cf08e36ec520cb2a61532c51968c419c6153be98b3895b
+          securityContext:
+            runAsUser: 100
+            runAsGroup: 101
+          resources:
+            requests: { cpu: 200m, memory: 512Mi }
+            limits: { cpu: "2", memory: 2Gi }
+          command: ["odoo", "-c", "/etc/odoo/odoo.conf", "-d", "woow_lab", "-u", "woow_paas_platform_lab", "--stop-after-init", "--no-http"]
+          volumeMounts:
+            - { name: odoo-conf, mountPath: /etc/odoo/odoo.conf, subPath: odoo.conf }
+            - { name: data, mountPath: /var/lib/odoo }
+            - { name: lab-addon, mountPath: /opt/woow/addons/woow_paas_platform_lab, readOnly: true }
+      volumes:
+        - name: odoo-conf
+          secret: { secretName: paas-odoo-platform-odoo-conf, defaultMode: 0440 }
+        - name: data
+          persistentVolumeClaim: { claimName: paas-odoo-platform-data }   # local-path：PV 綁在哪個節點，Job 就排到哪
+        - name: lab-addon
+          configMap:
+            name: woow-paas-platform-lab-addon
+            items:
+              - { key: __init__.py, path: __init__.py }
+              - { key: __manifest__.py, path: __manifest__.py }
+              - { key: data.lab_overrides.xml, path: data/lab_overrides.xml }
+              - { key: models.__init__.py, path: models/__init__.py }
+              - { key: models.cloud_app_template_lab.py, path: models/cloud_app_template_lab.py }
+              - { key: static.src.paas.workspace_hide_sections.xml, path: static/src/paas/workspace_hide_sections.xml }

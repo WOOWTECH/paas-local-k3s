@@ -48,5 +48,9 @@ affinity:                              # 避開筆電／TUF（兩台已滿；與
               operator: NotIn
               values: [woowtechcluster1-aorus-15p-xd, woowtech-ai-coder-asus-tuf-gaming-f15-fx507zu4-fx507zu4]
 resources:
+  # prod／stg 都是 limits cpu 2000m／memory 1Gi（#1552；更早 #?? 的 cold-start throttle 撞 Odoo 30 秒 timeout）。
+  # 本機節點是 4 核小主機、API 有 245 種資源：一次 kubectl apply 吃約 2.9 CPU 秒，1 核時被節流 1.7 秒，
+  # 建 namespace（約 10 次 apply）要 34 秒 > 平台 DEFAULT_TIMEOUT 30 秒 → 服務直接 error（2026-11-15 實測）。
+  # requests 不變（只抬上限，不影響排程）。
   requests: { cpu: 50m, memory: 256Mi }
-  limits: { cpu: "1", memory: 1Gi }
+  limits: { cpu: "3", memory: 1Gi }

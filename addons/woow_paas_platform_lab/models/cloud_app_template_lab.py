@@ -49,6 +49,30 @@ def _rewrite(obj):
     return obj
 
 
+# 範本層的值修正（只在 lab）：Bitnami chart 預設會建自己的 NetworkPolicy，egress 規則是 `- {}`（全放行），
+# 被 operator 的 ValidatingAdmissionPolicy paas-operator-tenant-netpol-guard（woow_paas_platform #1436）拒絕
+# → helm install 失敗（2026-11-15 實測）。上游這兩個範本 is_active=False，所以正式站沒遇過。
+# 關掉 chart 自帶的 NetworkPolicy；租戶 namespace 本來就有 operator 建的 5 條 baseline NetworkPolicy。
+TEMPLATE_VALUE_FIXES = {
+    "postgresql": {"primary": {"networkPolicy": {"enabled": False}},
+                   "readReplicas": {"networkPolicy": {"enabled": False}}},
+    "redis": {"networkPolicy": {"enabled": False}},
+}
+
+
+def _deep_set(dst, fix):
+    for k, v in fix.items():
+        if isinstance(v, dict):
+            node = dst.get(k)
+            if not isinstance(node, dict):
+                node = {}
+                dst[k] = node
+            _deep_set(node, v)
+        else:
+            dst[k] = v
+    return dst
+
+
 def _chart_basename(chart_name):
     return (chart_name or "").rstrip("/").rsplit("/", 1)[-1]
 
@@ -78,6 +102,8 @@ def lab_transform(slug, chart_name, values):
     new_values = _rewrite(json.loads(json.dumps(values)))
     if slug in LAB_VISIBLE_SLUGS:
         new_values = _apply_chart_default_fixes(new_chart, new_values)
+        if slug in TEMPLATE_VALUE_FIXES:
+            new_values = _deep_set(new_values, json.loads(json.dumps(TEMPLATE_VALUE_FIXES[slug])))
     return new_chart, new_values
 
 
@@ -112,4 +138,24 @@ class CloudAppTemplateLab(models.Model):
                 t.write(vals)
                 changed += 1
         _logger.info("woow_paas_platform_lab: registry/visibility overrides applied to %s template(s)", changed)
+        return True
+
+    @api.model
+    def _lab_setup_billing(self):
+        """fresh install 沒有人去「設定 → 發票 → 訂閱計費」選日記帳 → 開通服務被拒
+        （Subscription journal is not configured）。正式站是人工設的；lab 每次 -u 補上（已設就不動）。"""
+        Journal = self.env["account.journal"].sudo()
+        for company in self.env["res.company"].sudo().search([]):
+            vals = {}
+            if not company.woow_subscription_journal_id:
+                j = Journal.search([("company_id", "=", company.id), ("type", "=", "sale")], order="id", limit=1)
+                if j:
+                    vals["woow_subscription_journal_id"] = j.id
+            if not company.woow_subscription_settlement_journal_id:
+                j = Journal.search([("company_id", "=", company.id), ("type", "in", ("bank", "cash"))], order="id", limit=1)
+                if j:
+                    vals["woow_subscription_settlement_journal_id"] = j.id
+            if vals:
+                company.write(vals)
+            _logger.info("woow_paas_platform_lab: billing journals for company %s: %s", company.id, vals or "already set")
         return True
