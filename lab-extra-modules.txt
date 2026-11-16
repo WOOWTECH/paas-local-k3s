@@ -1,0 +1,9 @@
+# 使用者 2026-11-16 要在本機平台後台裝的模組（tools/lab-overlay-update.sh 每次都會 -i；已安裝的 Odoo 會跳過）。
+# 網站已安裝，所以 im_livechat 會自動帶出 website_livechat（網站即時聊天）。
+website_slides            # 原生：課程（網上學習）
+im_livechat               # 原生：線上客服
+woow_line_base            # woowtech LINE 全套裝：基礎層（統一 API 客戶端、用戶身份）
+woow_odoo_line_liff       # woowtech LINE 全套裝：Bridge（通知、Rich Menu、LIFF）
+woow_odoo_livechat_line   # woowtech LINE 全套裝：線上客服接 LINE
+woow_document_management  # woowtech 文件檔案（資料夾、權限、Portal 存取）
+woow_service_hub          # woowtech SaaS 線上服務管理（服務中心；不在映像裡，addons/woow_service_hub 掛進去）

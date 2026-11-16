@@ -1,0 +1,5 @@
+/* Safety: constrain user-uploaded images in service descriptions */
+.o_portal_content img {
+    max-width: 100%;
+    height: auto;
+}

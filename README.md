@@ -20,12 +20,15 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - `tools/images.txt`               要從 JCR 複製到 GHCR 的映像清單（digest 釘死）
 - `tools/mirror-images.sh`         在筆電節點跑 skopeo Job（hostAliases 走 tailnet 到 JCR）
 - `tools/mirror-charts.sh`         從 Gitea Helm registry 拉 chart 推到 oci://ghcr.io/woowtech/charts
-- `tools/post-render-lab-addon.py` Helm post-renderer：把 overlay addon 以 ConfigMap 掛到 /opt/woow/addons/、所有平台工作負載避開筆電／TUF
+- `tools/post-render-lab-addon.py` Helm post-renderer：把 `addons/` 底下每個 addon 以 ConfigMap 掛到 /opt/woow/addons/、所有平台工作負載避開筆電／TUF
+- `tools/lab_addons.py`           addon 掛載規則的唯一來源（哪些 addon、ConfigMap／volume 名稱、key 規則、二進位檔走 binaryData、`lab-extra-modules.txt`）
+- `lab-extra-modules.txt`         每次 `tools/lab-overlay-update.sh` 都會 `-i` 的模組（已安裝的會跳過）
 - `values/paas-operator.lab.yaml`  operator Helm values（lab）
 - `values/woow-odoo.platform.lab.yaml` 平台 Odoo Helm values（lab）
 - `values/cloudflare-ha.lab.yaml`  lab tunnel connector values
 - `jobs/platform-init.yaml`        平台 DB 一次性初始化 Job（chart 不做 fresh install）
 - `addons/woow_paas_platform_lab/` overlay addon：隱藏 SH/SA、改 6 個範本的 chart／image 座標、local-path
+- `addons/woow_service_hub/`      vendored：Gitea `mirror-internal/Woow_odoo_saas_management` 的 `woow_service_hub`（commit 56efe98），平台映像裡沒有
 
 ## 執行順序（runbook）
 0. 憑證就位（見下）。
@@ -45,6 +48,7 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 8. 先手動跑一次備份讓備份 PVC 綁定：`kubectl --context default -n paas-system create job --from=cronjob/paas-odoo-platform-backup paas-odoo-platform-backup-manual-1`；
    再跑第 6 步的指令但不帶 `--set replicas=0 --set cron.replicas=0`（可加 `--wait`）→ web／cron 各 1 副本。
    之後 overlay addon 有改：一律用 `tools/lab-overlay-update.sh`（先 `-u` 再滾動；順序反了 upgrade-gate 會讓 web 起不來）。
+9. 重建時第 8 步之後再跑一次 `tools/lab-overlay-update.sh`：它會 `-i` `lab-extra-modules.txt` 的模組（課程、線上客服、LINE、文件、服務中心），再跑 `site/build_site.py`、`site/patch_*.py` 建首頁。
 9. 驗收：開 workspace → 裝 postgresql／n8n → 檢查 ns／quota／netpol／備份 CronJob／tunnel 路由 → 刪除 → PVC 標記。
 
 ## 憑證（都在 ~/woow_tech_credential/，chmod 600，不進 git）—— 2026-11-15 實際採用
@@ -95,6 +99,16 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 
 ## 首頁：woowtech Cloud 一頁式介紹（2026-11-16）
 - overlay 18.0.1.0.12 加相依 `website`（平台裝了 Odoo 網站模組；正式站平台本來就有）。網站內容與修改方式見 `site/README.md`。
+
+## 第五批：內部用 app（2026-11-16，overlay 18.0.1.0.15）
+- 使用者要裝：原生「課程」`website_slides`、「線上客服」`im_livechat`（網站已裝 → 自動帶 `website_livechat`）；woowtech 自製
+  LINE 全套裝 `woow_line_base`＋`woow_odoo_line_liff`＋`woow_odoo_livechat_line`、文件檔案 `woow_document_management`、
+  SaaS 線上服務管理＝服務中心 `woow_service_hub`（依賴 hr → 一併裝「員工」）。清單在 `lab-extra-modules.txt`。
+- 前五個都在平台映像（paas-odoo-official 20261114.0636）的 /opt/woow/addons；`woow_service_hub` 不在，從 Gitea 鏡像 vendored 進
+  `addons/woow_service_hub/`，跟 overlay 一樣用 ConfigMap 掛進去（工具改成支援多個 addon，規則在 `tools/lab_addons.py`）。
+- 「庫存」不能解除安裝：`woow_paas_platform` → `ecpay_invoice_tw` → `stock`，解除會連平台一起移除 → 改成藏選單（`LAB_HIDDEN_MENUS`）。
+- 網站：線上客服**不**在首頁／登入頁顯示聊天按鈕（網站的即時聊天頻道清空）；「課程」放進首頁上方選單（`site/patch_02_apps.py`）。
+- LINE 模組裝好還要 LINE 官方帳號的 Channel 設定（Messaging API／LIFF）才會動。
 
 ## 已知問題與 lab 專屬調整（2026-11-15 實測）
 - **TUF 節點的 pod 網路不通**：該節點上的 pod 連 CoreDNS 都逾時（叢集既有問題，需上機查 flannel／防火牆）。

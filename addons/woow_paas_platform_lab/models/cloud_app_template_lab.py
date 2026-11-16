@@ -79,6 +79,8 @@ LAB_HIDDEN_MENUS = (
     "woow_paas_platform.menu_llm_known_discrepancies",       # AI 模型 › 已知額度差額
     "woow_paas_platform.menu_llm_manual_credit",             # AI 模型 › Manual Credit
     "woow_paas_platform.menu_llm_manual_credit_reports",     # AI 模型 › Monthly Credit Reports
+    # 使用者 2026-11-16「庫存移除」：stock 解除安裝會連平台一起移除（woow_paas_platform → ecpay_invoice_tw → stock），只能藏選單
+    "stock.menu_stock_root",                                 # 庫存
 )
 LAB_UNBOUND_ACTIONS = (
     "woow_paas_platform.action_gift_grant_wizard",           # 聯絡人「動作」選單裡的 Grant Wallet Credits
