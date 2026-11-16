@@ -28,7 +28,7 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - `values/cloudflare-ha.lab.yaml`  lab tunnel connector values
 - `jobs/platform-init.yaml`        平台 DB 一次性初始化 Job（chart 不做 fresh install）
 - `addons/woow_paas_platform_lab/` overlay addon：隱藏 SH/SA、改 6 個範本的 chart／image 座標、local-path
-- `addons/woow_service_hub/`      vendored：Gitea `mirror-internal/Woow_odoo_saas_management` 的 `woow_service_hub`（commit 56efe98），平台映像裡沒有
+- `addons/woow_service_hub/`      vendored：GitHub `WOOWTECH/Woow_odoo_saas_management`（Gitea `mirror-internal/` 是它的鏡像）的 `woow_service_hub` 18.0.1.1.0（PR #2 分支 bec8c8e，PR 待合併；原本 56efe98），平台映像裡沒有
 
 ## 執行順序（runbook）
 0. 憑證就位（見下）。
@@ -103,7 +103,7 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 ## 第五批：內部用 app（2026-11-16，overlay 18.0.1.0.15）
 - 使用者要裝：原生「課程」`website_slides`、「線上客服」`im_livechat`（網站已裝 → 自動帶 `website_livechat`）；woowtech 自製
   LINE 全套裝 `woow_line_base`＋`woow_odoo_line_liff`＋`woow_odoo_livechat_line`、文件檔案 `woow_document_management`、
-  SaaS 線上服務管理＝服務中心 `woow_service_hub`（依賴 hr → 一併裝「員工」）。清單在 `lab-extra-modules.txt`。
+  SaaS 線上服務管理＝服務中心 `woow_service_hub`（當時依賴 hr → 一併裝「員工」；18.0.1.1.0 起拿掉，見下方「服務中心拿掉 hr」）。清單在 `lab-extra-modules.txt`。
 - 前五個都在平台映像（paas-odoo-official 20261114.0636）的 /opt/woow/addons；`woow_service_hub` 不在，從 Gitea 鏡像 vendored 進
   `addons/woow_service_hub/`，跟 overlay 一樣用 ConfigMap 掛進去（工具改成支援多個 addon，規則在 `tools/lab_addons.py`）。
 - 「庫存」不能解除安裝：`woow_paas_platform` → `ecpay_invoice_tw` → `stock`，解除會連平台一起移除 → 改成藏選單（`LAB_HIDDEN_MENUS`）。
@@ -122,6 +122,29 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - 影響：LINE LIFF 會自動建 Portal 帳號、工作區邀請也會建帳號——這些人要等管理員加進群組才能用平台。註冊頁本來就關（/web/signup 404）。
 - 實測：不在群組的 Portal 帳號 /woow→/website/access-denied、平台 API 被擋、課程可看；群組成員與管理員正常；未登入看課程→登入頁；
   機器路由照常回 401／400。測試帳號已刪。
+
+## 服務中心拿掉 hr（2026-11-16，woow_service_hub 18.0.1.1.0）
+- 使用者問「服務中心為什麼依賴 hr」：查證只為一個選填欄位「內部負責人」`internal_manager_id → hr.employee`，權限群組／規則都沒用到 hr。
+  使用者決定本機拿掉 hr，並且**從源頭改**。
+- 上游 GitHub `WOOWTECH/Woow_odoo_saas_management` PR #2（18.0.1.1.0，分支 refactor/internal-manager-users-20261116；合併被 Claude 的安全檢查擋下，**待使用者合併**）：
+  - 欄位改指 `res.users`（只列內部使用者），depends 拿掉 hr；表單不提供快速新增（否則 name_create 沒 login 會跳錯誤）。
+  - `migrations/18.0.1.1.0/pre-migrate.py` 把既有員工值換成該員工綁定的使用者；沒帳號的員工清空並記 WARNING。
+  - Gitea `mirror-internal/...` 是它的拉取鏡像（8 小時同步）。
+  - cloud-odoo 映像（paas-odoo-ci `config/addons-sources.yaml`）仍釘 v18.0.1.0.1 @56efe98；要換版得打 tag 再另開 paas-odoo-ci PR。
+- 沙盒（一次性 pod，平台映像＋自帶 PG）實測：
+  - 全新安裝 40/40 通過、hr 沒被裝上。
+  - 舊版＋資料升級：員工→使用者對應正確，「員工 #2 ≠ 使用者 #2（Administrator）」的陷阱沒踩到。
+  - 升級後（有 hr）40/40 通過；解除 hr 後資料不變。
+- 本機：`addons/woow_service_hub/` 換成 PR 的版本。
+  - `tools/lab-overlay-update.sh` 改成 `-u` addons/ 底下全部模組（`with-lab-addon-items.py --update-addons`）。原因：vendored 模組升版號沒先 -u，upgrade-gate 會擋 web。
+  - 解除安裝 hr，連帶 7 個：hr_gamification、hr_livechat、hr_org_chart、hr_skills、hr_skills_slides、mail_bot_hr、project_hr_skills。
+  - 解除前手動備份 daily/2026-11-16T09:15:15Z。
+  - 留下的 mail_bot、resource_mail、web_hierarchy 是很小的技術模組，沒動。
+  - 叢集上跑的是 d289e1b；之後的 bec8c8e（只改表單：不提供快速新增）已在 repo，但還沒套上。原因是更新腳本跑到最後的
+    「重啟 web／cron」時，被 Claude Code 因主機記憶體不足停掉（重啟本身已完成，剩下的 -next ConfigMap 已手動清掉）。
+    依規定不自己重跑，下次執行 `tools/lab-overlay-update.sh` 才會套上（版本號沒變，upgrade-gate 不受影響）。
+  - 驗收：7 個 HR 模組＋hr 都 uninstalled、主選單沒有「員工」、服務中心表單的內部負責人列出使用者、/woow 與網站正常、
+    匿名 /woow 與 /slides 導到登入、/api/ha-paas/status 401。
 
 ## 已知問題與 lab 專屬調整（2026-11-15 實測）
 - **TUF 節點的 pod 網路不通**：該節點上的 pod 連 CoreDNS 都逾時（叢集既有問題，需上機查 flannel／防火牆）。
@@ -183,3 +206,4 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - 2026-11-16 overlay 18.0.1.0.14：方案名稱去計費字樣、後台帳務選單與贈點動作隱藏、前台訂閱徽章／續訂橫幅／帳務通知隱藏；兩帳號 24 頁＋通知面板驗收乾淨。
 - 2026-11-16 overlay 18.0.1.0.15：裝課程、線上客服、LINE 三件、文件、服務中心；庫存選單藏起來；網站不顯示客服按鈕、選單加課程。
 - 2026-11-16 overlay 18.0.1.0.16：裝 woowtech web auth＋轉接模組 woow_paas_lab_access（/woow 限群組「woowtech Cloud 使用者」、課程限登入）。
+- 2026-11-16 服務中心 18.0.1.1.0（上游 PR #2）：內部負責人改指使用者、拿掉 hr；本機解除 hr＋7 個 HR 模組（備份 daily/2026-11-16T09:15:15Z）；更新腳本改成 -u 全部 vendored 模組。
