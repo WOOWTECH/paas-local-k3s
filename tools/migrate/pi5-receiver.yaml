@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Pod
+metadata: {name: pi5-migrate-receiver, namespace: paas-local-infra, labels: {woow.paas/lab-migrate: pi5}}
+spec:
+  nodeName: woowtechcluster7
+  hostNetwork: true
+  dnsPolicy: Default
+  restartPolicy: Never
+  securityContext: {runAsUser: 0, runAsGroup: 0}
+  containers:
+    - name: recv
+      image: ghcr.io/woowtech/pi-agent:20261101.2318@sha256:596251bb3bd915ffa17706c12b13c354eacba73c96c48e3c1aed56a43e9e10df
+      imagePullPolicy: IfNotPresent
+      command: ["bash", "-c"]
+      args:
+        - |
+          set -euo pipefail
+          D=/storage/pvc-3e344671-d03d-408c-9b29-84f8e53c7e41_paas-ws-lab-26cf61b0_svc-d6c9a7bd-pi-agent-data
+          # 第一次：新服務剛初始化的內容移到旁邊；重試：上一輪沒收完的內容也移到旁邊（不刪）
+          [ -d "$D.fresh-20261116" ] || mv "$D" "$D.fresh-20261116"
+          if [ -d "$D" ] && [ -n "$(ls -A "$D")" ]; then mv "$D" "$D.partial-$(date +%H%M%S)"; fi
+          mkdir -p "$D"
+          python3 /scripts/recv.py 9123 192.168.2. | gzip -dc | tar -C "$D" --numeric-owner -xpf -
+          echo "tar-extract-ok"
+          python3 /scripts/manifest.py "$D"
+      resources: {requests: {cpu: 200m, memory: 128Mi}, limits: {cpu: "2", memory: 512Mi}}
+      volumeMounts:
+        - {name: storage, mountPath: /storage}
+        - {name: scripts, mountPath: /scripts}
+  volumes:
+    - {name: storage, hostPath: {path: /var/lib/rancher/k3s/storage, type: Directory}}
+    - {name: scripts, configMap: {name: lab-migrate-scripts}}

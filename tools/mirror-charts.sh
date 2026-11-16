@@ -9,7 +9,9 @@ GHCR_PAT=${GHCR_PAT:-$(gh auth token)}; : "${GHCR_PAT:?}"  # 2026-11-15：預設
 # 第三欄＝目的地（預設 oci://ghcr.io/woowtech/charts）。omnigent 改放 paas-charts：GHCR 上 charts/omnigent 是別的專案的公開 package，推進去會變公開。
 CHARTS=("woow-odoo 0.2.27" "woow-odoo 0.2.26" "paas-operator 0.1.36" "litellm 0.3.16" "emqx 0.1.11"
         "pi-agent 0.1.20" "hermes-agent 0.4.9" "open-design 0.5.10" "omnigent 0.1.19 oci://ghcr.io/woowtech/paas-charts"
-        "code-server 0.1.9" "home-assistant-full 0.1.10" "headscale 0.1.8" "mcp-server 0.1.10" "nextcloud 0.1.9" "tailscale 0.1.11")
+        "code-server 0.1.9" "code-server 0.1.12" "home-assistant-full 0.1.10" "headscale 0.1.8" "mcp-server 0.1.10" "nextcloud 0.1.9" "tailscale 0.1.11")
+# 帶參數＝只搬這幾個（每個參數 "name ver [dest]"），例：tools/mirror-charts.sh "code-server 0.1.12"
+[[ $# -gt 0 ]] && CHARTS=("$@")
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
 printf '%s' "$GHCR_PAT" | helm registry login ghcr.io -u WOOWTECH --password-stdin
 for c in "${CHARTS[@]}"; do set -- $c; name=$1; ver=$2; dest=${3:-oci://ghcr.io/woowtech/charts}

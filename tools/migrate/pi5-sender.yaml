@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata: {name: pi5-migrate-sender, namespace: pi5, labels: {woow.paas/lab-migrate: pi5}}
+spec:
+  nodeName: woowtech-ai-coder-asus-tuf-gaming-f15-fx507zu4-fx507zu4
+  hostNetwork: true
+  dnsPolicy: Default
+  restartPolicy: Never
+  imagePullSecrets: [{name: paas-registry}]
+  securityContext: {runAsUser: 0, runAsGroup: 0}
+  containers:
+    - name: send
+      image: jcr-prod.woowtech.io/woow-paas-docker-local/pi-agent:20261014.1017@sha256:e03edf0de84081a0c52e17bcfd85de404b214c5abd380b629352228658c7e063
+      imagePullPolicy: IfNotPresent
+      command: ["bash", "-c"]
+      args:
+        - |
+          set -euo pipefail
+          python3 /scripts/manifest.py /src
+          # TUF 走 WiFi 到 cluster7 只有約 2.3 MB/s：gzip -1 先壓（樣本 2.4 倍）
+          tar -C /src --numeric-owner -cpf - . | gzip -1 | python3 /scripts/send.py 192.168.2.37 9123
+          echo "tar-create-ok"
+      resources: {requests: {cpu: 200m, memory: 128Mi}, limits: {cpu: "2", memory: 512Mi}}
+      volumeMounts:
+        - {name: src, mountPath: /src, readOnly: true}
+        - {name: scripts, mountPath: /scripts}
+  volumes:
+    - {name: src, persistentVolumeClaim: {claimName: pi5-data, readOnly: true}}
+    - {name: scripts, configMap: {name: lab-migrate-scripts}}

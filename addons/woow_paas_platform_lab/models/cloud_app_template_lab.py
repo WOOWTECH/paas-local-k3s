@@ -149,6 +149,15 @@ TEMPLATE_VALUE_FIXES = {
                                              "limits": {"cpu": "2", "memory": "3Gi"}}}},
 }
 
+# 範本版本釘選（本機比正式站新）：chart 版本＋主映像 tag@digest。正式站範本升到同版後就拿掉。
+# 2026-11-16 code-server：本機 k3s 的 code-server-codex 搬進 PaaS 要用到 Codex CLI，只有 11/10 映像才有；
+# chart 0.1.12 已合併進 woow-paas-charts main（Pi、Claude、Codex 共用 skills／MCP），正式站範本仍是 0.1.9／20261018.0107。
+# 映像與 chart 已複製到 GHCR（tools/images-code-server.txt、tools/mirror-charts.sh "code-server 0.1.12"）。
+TEMPLATE_VERSION_PINS = {
+    "code-server": {"chart_version": "0.1.12",
+                    "image_tag": "20261110.1622@sha256:0271957892a382d88c141c4a0d3a2b3b53da6cd0b56ba7239fe229608d6dcb5b"},
+}
+
 
 def _deep_set(dst, fix):
     for k, v in fix.items():
@@ -196,6 +205,8 @@ def lab_transform(slug, chart_name, values):
         new_values = _apply_chart_default_fixes(new_chart, new_values)
         if slug in TEMPLATE_VALUE_FIXES:
             new_values = _deep_set(new_values, json.loads(json.dumps(TEMPLATE_VALUE_FIXES[slug])))
+    if slug in TEMPLATE_VERSION_PINS:
+        new_values = _deep_set(new_values, {"image": {"tag": TEMPLATE_VERSION_PINS[slug]["image_tag"]}})
     return new_chart, new_values
 
 
@@ -220,6 +231,9 @@ class CloudAppTemplateLab(models.Model):
                 new_chart, _ = lab_transform(t.slug, t.helm_chart_name, {})
             if new_chart != t.helm_chart_name:
                 vals["helm_chart_name"] = new_chart
+            pin = TEMPLATE_VERSION_PINS.get(t.slug)
+            if pin and t.helm_chart_version != pin["chart_version"]:
+                vals["helm_chart_version"] = pin["chart_version"]
             # 第一階段曝光層：6 個以外一律隱藏（只動 is_hidden，不動 conceal_instances）；6 個一律 is_active
             want_hidden = t.slug not in LAB_VISIBLE_SLUGS
             if t.is_hidden != want_hidden and not t.conceal_instances:

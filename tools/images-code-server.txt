@@ -1,0 +1,2 @@
+# 2026-11-16：code-server-codex 搬進 PaaS（chart 0.1.12、映像有 Codex CLI 0.167.0）。正式站範本仍是 0.1.9／20261018.0107。
+jcr-prod.woowtech.io/woow-paas-docker-local/code-server:20261110.1622@sha256:0271957892a382d88c141c4a0d3a2b3b53da6cd0b56ba7239fe229608d6dcb5b ghcr.io/woowtech/code-server:20261110.1622

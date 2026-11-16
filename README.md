@@ -152,6 +152,19 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
   - 驗收：7 個 HR 模組＋hr 都 uninstalled、主選單沒有「員工」、服務中心表單的內部負責人列出使用者、/woow 與網站正常、
     匿名 /woow 與 /slides 導到登入、/api/ha-paas/status 401。
 
+## 本機 k3s 既有部署搬進 PaaS（2026-11-16 起）
+- 使用者：「把目前本地 k3s 有部署的服務都放到 PaaS 裡面管理，例如 pi5」。決定：pi5 直接搬到小主機（接受 CPU 慢）；這次先做 pi5 與 code-server，其餘列清單另決定。
+- PaaS **不能原地接管**（operator 只管 `paas-ws-lab-*` 底下的 `svc-*`）⇒ 用平台自己的建立流程開新服務、搬資料磁碟、舊的縮到 0 留著退回。作法與腳本：`tools/migrate/README.md`。
+- 工作區「本機 k3s 服務」（id 9，ns `paas-ws-lab-26cf61b0`，擁有者 admin）。
+- **pi5（完成，11-16 22:16）**：服務 33 `svc-d6c9a7bd`（pi-agent chart 0.1.20、ghcr pi-agent 20261101.2318），放 cluster7（requests 1Gi／limits 3Gi；cluster2 預留已 78% 放不下）。
+  - 照舊接正式站 Omnigent：`omnigentHost.serverUrl=https://omnigent.woowtech.io`、`hostName=Pi Web ChatGPT (pi5)`；主機身分在資料磁碟 `home/.omnigent/auth_tokens.json`，搬過去後同一個 host_id（0ffa6b69…）回到 online。
+  - PaaS 網址 https://paas-cs-26cf61b0-fbdffad0.woowtech.io（basic auth admin；密碼在 `~/woow_tech_credential/paas-lab-pi5-credentials.json`）；匿名 401、登入 200「Pi Web」。
+  - 資料 14.0GB／448,914 項，兩邊清單指紋相同（b8f6afd3…）、串流 sha256 相同（gzip 後 5.05GB，50694db6…）。停機 21:17–22:16。
+  - 舊的：ns `pi5` 的 Deployment 縮到 0、TUF 上的 PVC `pi5-data` 留著（退回＝新的縮 0、舊的 scale 1）。cluster7 `/var/lib/rancher/k3s/storage/` 留了 `….fresh-20261116`（新服務初始化內容）與 `….partial-133516`（第一輪沒收完）待清。
+- **code-server-codex（進行中）**：舊的是 chart 0.1.12＋11/10 映像（有 Codex CLI 0.167.0），PaaS 範本還是正式站的 0.1.9／10/18（沒有 Codex）。
+  overlay 18.0.1.0.17 加 `TEMPLATE_VERSION_PINS`（code-server → chart 0.1.12、映像 20261110.1622）；chart 與映像先複製到 GHCR。資料只有約 142MB，放 cluster5（唯一還能預留 1Gi 的小主機）。
+- 這次查到的叢集狀況（詳見 `tools/migrate/README.md`）：TUF 現在走 WiFi 192.168.2.85、k3s 登記的還是 .191（＝TUF pod 網路壞的原因）；cluster3／6／7／8 的 InternalIP 是舊的（實際位址＝flannel public-ip）；cluster3 unreachable；筆電 swap 用光時 k3s 會自己重啟。
+
 ## 已知問題與 lab 專屬調整（2026-11-15 實測）
 - **TUF 節點的 pod 網路不通**：該節點上的 pod 連 CoreDNS 都逾時（叢集既有問題，需上機查 flannel／防火牆）。
   operator `config.tenantAvoidNodes` 讓租戶 pod 避開 TUF 與筆電；平台本身用 post-renderer 的 nodeAffinity 避開。
