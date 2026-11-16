@@ -94,13 +94,21 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
   agent runtime（要 LLM 金鑰＋operator 從受 Cloudflare Access 保護的 Gitea 抓 chart）；node-mss-clamp（只有 HAOS 需要，HAOS 已因磁碟隱藏）。
 
 ## 首頁：woowtech Cloud 一頁式介紹（2026-11-16）
-- overlay 18.0.1.0.12 加相依 `website`（平台裝了 Odoo 網站模組；正式站平台本來就有）。網站內容與修改方式見 `site/README.md`。\n\n## 已知問題與 lab 專屬調整（2026-11-15 實測）
+- overlay 18.0.1.0.12 加相依 `website`（平台裝了 Odoo 網站模組；正式站平台本來就有）。網站內容與修改方式見 `site/README.md`。
+
+## 已知問題與 lab 專屬調整（2026-11-15 實測）
 - **TUF 節點的 pod 網路不通**：該節點上的 pod 連 CoreDNS 都逾時（叢集既有問題，需上機查 flannel／防火牆）。
   operator `config.tenantAvoidNodes` 讓租戶 pod 避開 TUF 與筆電；平台本身用 post-renderer 的 nodeAffinity 避開。
 - **operator CPU**：kubectl apply 每次約 2.9 CPU 秒（本叢集 245 種 API 資源）；limits 1 核時建 namespace 34 秒 > 平台寫死的 30 秒 timeout。現為 3 核。
 - **Bitnami postgresql／redis**：上游 is_active=False、映像只剩 `:latest`（浮動）；chart 自帶 NetworkPolicy 被 operator 的
   `paas-operator-tenant-netpol-guard` 擋 → overlay 關掉 chart NP；Redis 上游零方案 → overlay 補「Redis 月繳（lab）」。
 - **訂閱日記帳**：fresh DB 沒設 → overlay `_lab_setup_billing` 自動補。
+- **計費排程在 lab 是關的（模組預設，正式站切換時才開）**：`woow_subscription` 的每日計費（`_cron_billing_run`）與
+  合約到期（`_cron_lifecycle_run`）裝好時就是 `active=False`。所以 lab 試用到期**不會扣款、不會停權**（停權只發生在
+  每日計費連續扣款失敗→自動取消、或合約到期之後）。不要為了「讓點數被扣」去打開它們。
+- **內部帳號點數（2026-11-16 使用者決定用平台贈點）**：後台 聯絡人 → 開那個人 → 動作 →「Grant Wallet Credits」
+  （限設定管理員）。已贈：Administrator 1,000,000 點（WT00000001）、Lab Tenant 100,000 點（WT00000002）。
+  計費關著時，點數用在會先檢查餘額的操作：用錢包付發票、換方案、續訂、提前結束試用、買 LLM 額度。新同仁帳號一樣從 0 開始，要各自贈點。
 - **公開網址**：租戶服務是 `paas-cs-<ws8>-<svc8>.woowtech.io`，跟正式站同一層網域，名稱不會撞（帶亂數），但肉眼分不出是 lab。
 
 ## 執行紀錄
@@ -130,3 +138,4 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - 2026-11-15 22:30–23:30 第四批：停權頁、Woow MCP gateway（租戶 token → MCP initialize／tools/list 5 個工具／list_workspaces 只回自己的工作區／撤銷後 401）、
   paas-netpol（無關 pod 連不到 operator、平台照常）；overlay 18.0.1.0.10。
 - 2026-11-16 HAOS 移除（overlay 18.0.1.0.11；殘留 DataVolume 刪除、cluster5 釋出 32GiB 的 PV）；報告改正正式站使用數（排除 staging）。\n- 2026-11-16 平台裝 website（overlay 18.0.1.0.12），建立 woowtech Cloud 一頁式首頁（`site/`）；匿名／手機／登入頁／編輯器都實測過。\n
+- 2026-11-16 用平台贈點精靈給 Administrator 1,000,000 點、Lab Tenant 100,000 點（內部使用）；確認 lab 計費排程本來就是關的、試用到期不會停權。
