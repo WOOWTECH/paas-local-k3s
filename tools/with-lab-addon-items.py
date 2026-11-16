@@ -2,7 +2,8 @@
 """把 Job YAML 的 addon volume／volumeMount 依 addons/ 的實際內容重新產生後印出（規則在 tools/lab_addons.py）。
 用法：python3 tools/with-lab-addon-items.py jobs/lab-overlay-update.yaml [--configmap-suffix -next] [--install-extras] [--update-addons] | kubectl --context default apply -f -
   --configmap-suffix  改掛 <ConfigMap 名稱><suffix>（更新腳本先套的「下一版」）
-  --install-extras    在 odoo 指令加上 -i <lab-extra-modules.txt 的模組>（已安裝的 Odoo 會跳過）
+  --install-extras    在 odoo 指令加上 -i <lab-extra-modules.txt 的模組>。只在清單有還沒安裝的模組時用：
+                      已安裝的模組不會被跳過，而是用 init 模式重載資料（noupdate 記錄被蓋回 XML 的值）
   --update-addons     -u 改成 addons/ 底下全部模組（vendored 模組升版號也要先 -u，否則 upgrade-gate 擋 web；未安裝的 Odoo 會略過）
 （舊參數 --configmap NAME 仍可用，只對 overlay 生效。）"""
 import sys

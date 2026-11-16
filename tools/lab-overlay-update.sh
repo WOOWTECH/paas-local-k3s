@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # overlay addon 改完後的一鍵套用（2026-11-15 修正順序）：
-#   ① 先用每個 addon 的「-next」ConfigMap 跑 odoo -i <lab-extra-modules.txt> -u <addons/ 底下全部模組>（web／cron 照跑，不動 helm）
+#   ① 先用每個 addon 的「-next」ConfigMap 跑 odoo -u <addons/ 底下全部模組>（web／cron 照跑，不動 helm）
+#      INSTALL_EXTRAS=1 時再加 -i <lab-extra-modules.txt>：只在清單有「還沒安裝」的模組時用（重建、或清單加了新模組）。
+#      平常別加：odoo -i 不會跳過已安裝的模組，而是用 init 模式重載它的資料，noupdate 記錄會被蓋回 XML 的值
+#      （例如 woow_paas_lab_access 的初始 Auth Rules、im_livechat 的客服頻道名稱與歡迎詞；2026-11-16 查 Odoo 原始碼確認）。
 #      addon 清單與 ConfigMap 規則在 tools/lab_addons.py（overlay＋addons/ 底下 vendored 的模組）
 #   ② 再 helm upgrade 平台（post-renderer 重建正式 ConfigMap；若檔案清單變了 Deployment 會滾動）
 # 順序不能反：chart 的 upgrade-gate 會比對「DB 裡的模組版本」與 manifest，manifest 比 DB 新就 exit（web 起不來）。
@@ -15,7 +18,8 @@ docs = [L.configmap(a, L.cm_name(a, "-next"), "paas-system", {"woow.paas/lab-ove
 print(yaml.safe_dump_all(docs, allow_unicode=True, sort_keys=False))
 PYEOF
 "${K[@]}" delete job lab-overlay-update --ignore-not-found --wait=true >/dev/null
-python3 tools/with-lab-addon-items.py jobs/lab-overlay-update.yaml --configmap-suffix -next --install-extras --update-addons | "${K[@]}" apply -f -
+if [[ "${INSTALL_EXTRAS:-0}" == 1 ]]; then EXTRAS=--install-extras; else EXTRAS=; fi
+python3 tools/with-lab-addon-items.py jobs/lab-overlay-update.yaml --configmap-suffix -next $EXTRAS --update-addons | "${K[@]}" apply -f -
 "${K[@]}" wait --for=condition=complete --timeout=20m job/lab-overlay-update || { "${K[@]}" logs job/lab-overlay-update --tail=40; exit 1; }
 "${K[@]}" logs job/lab-overlay-update | grep -E "$(cd addons && ls -d */ | tr -d / | paste -sd'|')" | tail -12
 helm --kube-context "$CTX" upgrade paas-odoo-platform oci://ghcr.io/woowtech/charts/woow-odoo --version 0.2.27 -n paas-system \

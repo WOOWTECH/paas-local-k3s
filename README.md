@@ -22,7 +22,7 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - `tools/mirror-charts.sh`         從 Gitea Helm registry 拉 chart 推到 oci://ghcr.io/woowtech/charts
 - `tools/post-render-lab-addon.py` Helm post-renderer：把 `addons/` 底下每個 addon 以 ConfigMap 掛到 /opt/woow/addons/、所有平台工作負載避開筆電／TUF
 - `tools/lab_addons.py`           addon 掛載規則的唯一來源（哪些 addon、ConfigMap／volume 名稱、key 規則、二進位檔走 binaryData、`lab-extra-modules.txt`）
-- `lab-extra-modules.txt`         每次 `tools/lab-overlay-update.sh` 都會 `-i` 的模組（已安裝的會跳過）
+- `lab-extra-modules.txt`         `INSTALL_EXTRAS=1 tools/lab-overlay-update.sh` 才會 `-i` 的模組（只在有還沒安裝的模組時用：已安裝的模組 `-i` 會用 init 模式重載資料，noupdate 設定被蓋回初始值）
 - `values/paas-operator.lab.yaml`  operator Helm values（lab）
 - `values/woow-odoo.platform.lab.yaml` 平台 Odoo Helm values（lab）
 - `values/cloudflare-ha.lab.yaml`  lab tunnel connector values
@@ -48,7 +48,7 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 8. 先手動跑一次備份讓備份 PVC 綁定：`kubectl --context default -n paas-system create job --from=cronjob/paas-odoo-platform-backup paas-odoo-platform-backup-manual-1`；
    再跑第 6 步的指令但不帶 `--set replicas=0 --set cron.replicas=0`（可加 `--wait`）→ web／cron 各 1 副本。
    之後 overlay addon 有改：一律用 `tools/lab-overlay-update.sh`（先 `-u` 再滾動；順序反了 upgrade-gate 會讓 web 起不來）。
-9. 重建時第 8 步之後再跑一次 `tools/lab-overlay-update.sh`：它會 `-i` `lab-extra-modules.txt` 的模組（課程、線上客服、LINE、文件、服務中心），再跑 `site/build_site.py`、`site/patch_*.py` 建首頁。
+9. 重建時第 8 步之後再跑一次 `INSTALL_EXTRAS=1 tools/lab-overlay-update.sh`：它會 `-i` `lab-extra-modules.txt` 的模組（課程、線上客服、LINE、文件、服務中心），再跑 `site/build_site.py`、`site/patch_*.py` 建首頁。
 9. 驗收：開 workspace → 裝 postgresql／n8n → 檢查 ns／quota／netpol／備份 CronJob／tunnel 路由 → 刪除 → PVC 標記。
 
 ## 憑證（都在 ~/woow_tech_credential/，chmod 600，不進 git）—— 2026-11-15 實際採用
@@ -141,9 +141,14 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
   - 解除安裝 hr，連帶 7 個：hr_gamification、hr_livechat、hr_org_chart、hr_skills、hr_skills_slides、mail_bot_hr、project_hr_skills。
   - 解除前手動備份 daily/2026-11-16T09:15:15Z。
   - 留下的 mail_bot、resource_mail、web_hierarchy 是很小的技術模組，沒動。
-  - 叢集上跑的是 d289e1b；之後的 bec8c8e（只改表單：不提供快速新增）已在 repo，但還沒套上。原因是更新腳本跑到最後的
-    「重啟 web／cron」時，被 Claude Code 因主機記憶體不足停掉（重啟本身已完成，剩下的 -next ConfigMap 已手動清掉）。
-    依規定不自己重跑，下次執行 `tools/lab-overlay-update.sh` 才會套上（版本號沒變，upgrade-gate 不受影響）。
+  - 第一次套用（d289e1b）跑到最後的「重啟 web／cron」時，更新腳本被 Claude Code 因主機記憶體不足停掉（重啟本身已完成，剩下的 -next ConfigMap 已手動清掉）。
+  - bec8c8e（只改表單：不提供快速新增）在使用者說「現在套」後，19:18 用 `RESTART=0 tools/lab-overlay-update.sh` 套上（約 1.5 分鐘，helm revision 25）。
+    只改畫面 XML，所以沒重啟 web／cron、網站沒中斷（-u 之後 registry signaling 會讓 web 自己換新）；這次也沒有 `-i`（見下一點）。
+    驗收：以 admin 從網站取得的服務中心表單，內部負責人帶 `no_create`（res.users、只列內部使用者）；/、/slides、/my/services、/woow 都 200。
+  - 同一次查到：`tools/lab-overlay-update.sh` 以前每次都 `-i` lab-extra-modules.txt 的模組。Odoo 對已安裝的模組 `-i` 不是跳過，
+    而是用 init 模式重載資料，noupdate 記錄會被蓋回 XML 的值（例如 woow_paas_lab_access 的初始 Auth Rules、im_livechat 客服頻道的名稱與歡迎詞）。
+    已改成 `INSTALL_EXTRAS=1` 才 `-i`（只在清單有還沒安裝的模組時用）。今天 17:15 那次（以及之前每次）都有重載；
+    那之前若在後台改過這些設定會被蓋回去，備份 daily/2026-11-16T09:15:15Z 是 17:15 那次之前的狀態。
   - 驗收：7 個 HR 模組＋hr 都 uninstalled、主選單沒有「員工」、服務中心表單的內部負責人列出使用者、/woow 與網站正常、
     匿名 /woow 與 /slides 導到登入、/api/ha-paas/status 401。
 
@@ -208,3 +213,4 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - 2026-11-16 overlay 18.0.1.0.15：裝課程、線上客服、LINE 三件、文件、服務中心；庫存選單藏起來；網站不顯示客服按鈕、選單加課程。
 - 2026-11-16 overlay 18.0.1.0.16：裝 woowtech web auth＋轉接模組 woow_paas_lab_access（/woow 限群組「woowtech Cloud 使用者」、課程限登入）。
 - 2026-11-16 服務中心 18.0.1.1.0（上游 PR #2，17:39 使用者合併 → main 5ff4ef2）：內部負責人改指使用者、拿掉 hr；本機解除 hr＋7 個 HR 模組（備份 daily/2026-11-16T09:15:15Z）；更新腳本改成 -u 全部 vendored 模組。
+- 2026-11-16 19:18 套上服務中心表單小修（bec8c8e＝main 5ff4ef2；RESTART=0，沒中斷）；更新腳本改成 INSTALL_EXTRAS=1 才 -i（已安裝模組 -i 會用 init 模式把 noupdate 設定蓋回初始值）。
