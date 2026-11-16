@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Pod
+metadata: {name: cs-migrate-dst, namespace: paas-local-infra, labels: {woow.paas/lab-migrate: code-server}}
+spec:
+  nodeName: woowtechcluster5
+  restartPolicy: Never
+  securityContext: {runAsUser: 0, runAsGroup: 0}
+  containers:
+    - name: dst
+      image: ghcr.io/woowtech/code-server:20261110.1622@sha256:0271957892a382d88c141c4a0d3a2b3b53da6cd0b56ba7239fe229608d6dcb5b
+      imagePullPolicy: IfNotPresent
+      command: ["bash", "-c"]
+      args:
+        - |
+          set -euo pipefail
+          D=/storage/pvc-4a59886e-5334-46c8-b15f-0b285266d71a_paas-ws-lab-26cf61b0_svc-50ec6317-code-server-pi-data
+          # 新服務剛初始化的內容移到旁邊（不刪），換成空目錄等舊資料進來
+          [ -d "$D.fresh-20261116" ] || mv "$D" "$D.fresh-20261116"
+          mkdir -p "$D"
+          echo ready
+          sleep 3600
+      resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: "1", memory: 512Mi}}
+      volumeMounts:
+        - {name: storage, mountPath: /storage}
+        - {name: scripts, mountPath: /scripts}
+  volumes:
+    - {name: storage, hostPath: {path: /var/lib/rancher/k3s/storage, type: Directory}}
+    - {name: scripts, configMap: {name: lab-migrate-scripts}}

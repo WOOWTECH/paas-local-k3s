@@ -25,3 +25,5 @@ PaaS 沒有「原地接管」：平台只認自己在 `paas-ws-lab-*` 底下用 
   所以 `kubectl top` 抓不到這幾台；節點對節點連線要用實際位址。cluster3 目前 unreachable。
 - **TUF→cluster7 只有約 2.3 MB/s**（WiFi）。pi5 資料用 gzip -1 壓（約 2.4 倍）後有效約 6 MB/s。
 - **筆電的 k3s 會因 swap 用光而自己重啟**（21:17，controller-manager 續不了 lease ⇒ exit 1 ⇒ systemd 重啟，約 40 秒）。大量傳輸別走筆電。
+- **小資料改走 API，但要分段驗**：code-server 142MB 直接 `kubectl exec … tar | kubectl exec -i … tar` 會被截斷（tar: Unexpected EOF）。
+  改成來源 pod 先打包成檔案＋sha256 → 抓回本機比 sha → 傳到目標 pod 比 sha → 解開，再用 `manifest.py --content` 比兩邊（`code-server-*-helper.yaml`）。

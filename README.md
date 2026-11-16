@@ -161,8 +161,11 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
   - PaaS 網址 https://paas-cs-26cf61b0-fbdffad0.woowtech.io（basic auth admin；密碼在 `~/woow_tech_credential/paas-lab-pi5-credentials.json`）；匿名 401、登入 200「Pi Web」。
   - 資料 14.0GB／448,914 項，兩邊清單指紋相同（b8f6afd3…）、串流 sha256 相同（gzip 後 5.05GB，50694db6…）。停機 21:17–22:16。
   - 舊的：ns `pi5` 的 Deployment 縮到 0、TUF 上的 PVC `pi5-data` 留著（退回＝新的縮 0、舊的 scale 1）。cluster7 `/var/lib/rancher/k3s/storage/` 留了 `….fresh-20261116`（新服務初始化內容）與 `….partial-133516`（第一輪沒收完）待清。
-- **code-server-codex（進行中）**：舊的是 chart 0.1.12＋11/10 映像（有 Codex CLI 0.167.0），PaaS 範本還是正式站的 0.1.9／10/18（沒有 Codex）。
-  overlay 18.0.1.0.17 加 `TEMPLATE_VERSION_PINS`（code-server → chart 0.1.12、映像 20261110.1622）；chart 與映像先複製到 GHCR。資料只有約 142MB，放 cluster5（唯一還能預留 1Gi 的小主機）。
+- **code-server-codex（完成，11-16 23:32）**：服務 34 `svc-50ec6317`（code-server chart 0.1.12、ghcr code-server 20261110.1622，有 Codex CLI 0.167.0／Claude Code 2.1.285／pi 0.99.1），放 cluster5（requests 1Gi／limits 3Gi）。
+  - 舊的是 chart 0.1.12＋11/10 映像，PaaS 範本原本是正式站的 0.1.9／10/18（沒有 Codex）⇒ overlay 18.0.1.0.17 `TEMPLATE_VERSION_PINS` 把本機的 code-server 範本釘到 0.1.12＋11/10 映像（chart／映像先複製到 GHCR，映像 3.66GiB 約 47 分）。
+  - 帶過去的設定：pi 預設 openai-codex／OpenRouter 預設 moonshotai/kimi-k2.6、git tokenUsername、zh-tw、Asia/Taipei（舊的 API key／git token 本來就是空的）。
+  - PaaS 網址 https://paas-cs-26cf61b0-42e71b84.woowtech.io（密碼在 `~/woow_tech_credential/paas-lab-code-server-codex-credentials.json`）；繁中登入頁、登入後進 /workspace。
+  - 資料 142.9MB／2,177 項（連內容 sha256）兩邊一致；停機 23:27–23:32。舊的：ns `paas-test-code-server` 縮到 0、兩顆 PVC 留著。cluster5 留了 `….fresh-20261116`、`….partial-2328` 待清。
 - 這次查到的叢集狀況（詳見 `tools/migrate/README.md`）：TUF 現在走 WiFi 192.168.2.85、k3s 登記的還是 .191（＝TUF pod 網路壞的原因）；cluster3／6／7／8 的 InternalIP 是舊的（實際位址＝flannel public-ip）；cluster3 unreachable；筆電 swap 用光時 k3s 會自己重啟。
 
 ## 已知問題與 lab 專屬調整（2026-11-15 實測）
