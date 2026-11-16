@@ -113,6 +113,13 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
   - 原本的價格與試用長度存在 `ir.config_parameter` `woow_paas_platform_lab.plan_terms_before_charging_off`（JSON：plan id →
     [price, trial_length, trial_unit]）。**要恢復收費**：先拿掉 `lab_overrides.xml` 的 `_lab_disable_charging` 與 manifest 的
     `lab_no_billing.*`、跑 `tools/lab-overlay-update.sh`，再用 odoo shell 照快照寫回方案、重新打開需要的排程。
+  - **18.0.1.0.14（同日，使用者：「相關的都隱藏，因為是內部使用」）**：
+    - 方案名稱拿掉「訂閱／月繳／年繳」（`_lab_internal_plan_names`；例「n8n雲端訂閱服務（6人）+5 存取席位 月繳」→「n8n雲端服務（6人）+5 存取席位」），
+      原名存在 `woow_paas_platform_lab.plan_names_before_internal`（JSON：plan id → 原名）。overlay 自己的 Redis 方案直接改成「Redis（lab）」0 元不試用。
+    - 後台（`_lab_hide_billing_backoffice`）：藏「發票」「銷售」兩個 app、Woow PaaS 的「帳務事件」「綁卡驗證授權取消」、AI 模型的五個額度選單；
+      解除聯絡人「動作」裡的 Grant Wallet Credits。恢復＝把 `LAB_HIDDEN_MENUS` 的選單設回 active、action 綁回 res.partner。
+    - 前台再補：服務卡的訂閱徽章、服務頁的「訂閱已取消／請續訂」橫幅、舊試用訂閱換方案時的「結束試用、開始計費」關卡、
+      通知中心的帳務通知（trial_ending、renewal_low_balance、invoice_unpaid、wallet_activity、llm_*）。
   - 已存在的 17 個測試訂閱價格在開通時就凍結（引擎不准改），但每日計費關著，不會扣款也不會因此停權。
   - 11-16 早先給的贈點（Administrator 1,000,000＝WT00000001、Lab Tenant 100,000＝WT00000002）還在錢包裡，只是前台看不到、用不到。
 - **公開網址**：租戶服務是 `paas-cs-<ws8>-<svc8>.woowtech.io`，跟正式站同一層網域，名稱不會撞（帶亂數），但肉眼分不出是 lab。
@@ -146,3 +153,4 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - 2026-11-16 HAOS 移除（overlay 18.0.1.0.11；殘留 DataVolume 刪除、cluster5 釋出 32GiB 的 PV）；報告改正正式站使用數（排除 staging）。\n- 2026-11-16 平台裝 website（overlay 18.0.1.0.12），建立 woowtech Cloud 一頁式首頁（`site/`）；匿名／手機／登入頁／編輯器都實測過。\n
 - 2026-11-16 用平台贈點精靈給 Administrator 1,000,000 點、Lab Tenant 100,000 點（內部使用）；確認 lab 計費排程本來就是關的、試用到期不會停權。
 - 2026-11-16 內部使用不收費：overlay 18.0.1.0.13（方案 0 元＋不試用＋停用 5 個扣款相關排程；前台隱藏點數／儲值／帳單／價格）。
+- 2026-11-16 overlay 18.0.1.0.14：方案名稱去計費字樣、後台帳務選單與贈點動作隱藏、前台訂閱徽章／續訂橫幅／帳務通知隱藏；兩帳號 24 頁＋通知面板驗收乾淨。

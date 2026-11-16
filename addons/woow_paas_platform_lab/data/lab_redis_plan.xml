@@ -1,25 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- Redis 範本在上游沒有任何訂閱方案（is_active=False、零方案）→ plan_create 必擋（plan 必須屬於範本）。
-         lab 依使用者「先開 6 個」補一個 placeholder 方案，形狀照 PostgreSQL 的 plan_postgresql_monthly（價格同為 99）。 -->
+         lab 依使用者「先開 6 個」補一個 placeholder 方案，形狀照 PostgreSQL 的 plan_postgresql_monthly。
+         2026-11-16 內部使用：名稱拿掉「月繳」、0 元、不試用（原本「Redis 月繳（lab）」99 點、試用 7 天）。 -->
     <data noupdate="0">
         <record id="lab_plan_redis_monthly" model="woow.subscription.plan">
-            <field name="name">Redis 月繳（lab）</field>
+            <field name="name">Redis（lab）</field>
             <field name="interval_count">1</field>
             <field name="interval_unit">month</field>
-            <field name="price">99</field>
+            <field name="price">0</field>
             <field name="cycle_limit">0</field>
             <field name="is_open_ended" eval="True"/>
-            <field name="trial_length">7</field>
+            <field name="trial_length">0</field>
             <field name="trial_unit">day</field>
             <field name="customer_can_end" eval="True"/>
             <field name="service_type">cloud_service</field>
         </record>
 
         <record id="lab_product_redis_monthly" model="product.product">
-            <field name="name">Redis 月繳（lab） Subscription</field>
+            <field name="name">Redis（lab）</field>
             <field name="type">service</field>
-            <field name="list_price">99</field>
+            <field name="list_price">0</field>
             <field name="sale_ok" eval="True"/>
             <field name="purchase_ok" eval="False"/>
             <field name="woow_is_subscription" eval="True"/>

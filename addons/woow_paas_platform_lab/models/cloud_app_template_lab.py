@@ -5,6 +5,7 @@ _lab_apply_registry_overrides()，所以上游 seed（noupdate=0）洗回來之�
 """
 import json
 import logging
+import re
 
 from odoo import api, models
 
@@ -63,6 +64,33 @@ LAB_CHARGING_CRONS_OFF = (
     "woow_paas_platform.ir_cron_low_balance_warning",       # 續訂前餘額不足提醒
     "woow_paas_platform.ir_cron_billing_silence_alert",     # 「計費靜默」告警（扣款關掉後會一直誤報）
 )
+
+# 使用者 2026-11-16：「名稱裡的月繳／訂閱拿掉，相關的都隱藏，因為是內部使用」。
+# 方案名稱去掉計費字樣（原名第一次套用時存進下面的參數）；後台的會計／銷售／帳務選單與贈點動作藏起來（active=False／解除綁定，
+# 要恢復就反過來設）。只動介面與名稱，模型與資料都還在。
+LAB_PLAN_NAMES_SNAPSHOT_PARAM = "woow_paas_platform_lab.plan_names_before_internal"
+LAB_HIDDEN_MENUS = (
+    "account.menu_finance",                                  # 發票（含 訂閱／待開票／方案）
+    "sale.sale_menu_root",                                   # 銷售（含 禮品卡及電子錢包）
+    "woow_paas_platform.menu_billing_incidents",             # Woow PaaS › 帳務事件
+    "woow_paas_platform.menu_ecpg_bind_auth_void",           # Woow PaaS › 綁卡驗證授權取消
+    "woow_paas_platform.menu_llm_free_fallback",             # AI 模型 › 免費試用備援
+    "woow_paas_platform.menu_llm_credit_orders_backoffice",  # AI 模型 › Credit Orders
+    "woow_paas_platform.menu_llm_known_discrepancies",       # AI 模型 › 已知額度差額
+    "woow_paas_platform.menu_llm_manual_credit",             # AI 模型 › Manual Credit
+    "woow_paas_platform.menu_llm_manual_credit_reports",     # AI 模型 › Monthly Credit Reports
+)
+LAB_UNBOUND_ACTIONS = (
+    "woow_paas_platform.action_gift_grant_wizard",           # 聯絡人「動作」選單裡的 Grant Wallet Credits
+)
+
+
+def lab_internal_plan_name(name):
+    """純函式：方案名稱拿掉計費字樣。「n8n雲端訂閱服務（6人）+5 存取席位 月繳」→「n8n雲端服務（6人）+5 存取席位」。"""
+    new = (name or "").replace("雲端訂閱服務", "雲端服務").replace("訂閱服務", "服務").replace("訂閱", "")
+    new = re.sub(r"\s*(?:月繳|年繳)", "", new)
+    return re.sub(r"\s{2,}", " ", new).strip() or name
+
 
 LAB_PLAN_SPECS = {
     "woow_paas_platform.plan_pi_agent_monthly": {"cs_ram_gb": 3.0},
@@ -273,4 +301,42 @@ class CloudAppTemplateLab(models.Model):
                 crons_off.append(xmlid.split(".")[-1])
         _logger.info("woow_paas_platform_lab: charging off — plans zeroed: %s, crons disabled: %s",
                      len(to_zero), crons_off or "already off")
+        return True
+
+
+    @api.model
+    def _lab_internal_plan_names(self):
+        """方案名稱去掉「訂閱／月繳／年繳」（每次 -u 再套一次；已是新名稱就不動）。"""
+        Plan = self.env["woow.subscription.plan"].sudo().with_context(active_test=False)
+        icp = self.env["ir.config_parameter"].sudo()
+        plans = Plan.search([])
+        if not icp.get_param(LAB_PLAN_NAMES_SNAPSHOT_PARAM):
+            icp.set_param(LAB_PLAN_NAMES_SNAPSHOT_PARAM,
+                          json.dumps({str(p.id): p.name for p in plans}, ensure_ascii=False))
+        renamed = 0
+        for plan in plans:
+            new = lab_internal_plan_name(plan.name)
+            if new != plan.name:
+                plan.write({"name": new})
+                renamed += 1
+        _logger.info("woow_paas_platform_lab: plan names cleaned: %s", renamed)
+        return True
+
+    @api.model
+    def _lab_hide_billing_backoffice(self):
+        """後台：藏會計／銷售／帳務相關選單，解除「Grant Wallet Credits」在聯絡人上的綁定。"""
+        hidden = []
+        for xmlid in LAB_HIDDEN_MENUS:
+            menu = self.env.ref(xmlid, raise_if_not_found=False)
+            if menu and menu.active:
+                menu.sudo().write({"active": False})
+                hidden.append(xmlid)
+        unbound = []
+        for xmlid in LAB_UNBOUND_ACTIONS:
+            action = self.env.ref(xmlid, raise_if_not_found=False)
+            if action and action.binding_model_id:
+                action.sudo().write({"binding_model_id": False})
+                unbound.append(xmlid)
+        _logger.info("woow_paas_platform_lab: billing back office hidden — menus: %s, actions unbound: %s",
+                     hidden or "already hidden", unbound or "already unbound")
         return True

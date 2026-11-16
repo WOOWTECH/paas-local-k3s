@@ -30,5 +30,9 @@
 
         <!-- 內部使用：關閉扣款（方案 0 元、不試用、停用扣款相關排程；使用者 2026-11-16） -->
         <function model="woow_paas_platform.cloud_app_template" name="_lab_disable_charging"/>
+
+        <!-- 內部使用：方案名稱拿掉「訂閱／月繳／年繳」、後台帳務選單與贈點動作藏起來（使用者 2026-11-16） -->
+        <function model="woow_paas_platform.cloud_app_template" name="_lab_internal_plan_names"/>
+        <function model="woow_paas_platform.cloud_app_template" name="_lab_hide_billing_backoffice"/>
     </data>
 </odoo>

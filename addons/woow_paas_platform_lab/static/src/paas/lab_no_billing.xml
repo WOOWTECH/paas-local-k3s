@@ -52,9 +52,15 @@
         <xpath expr="//div[@t-elif='subscription.next_payment']" position="replace"/>
     </t>
 
-    <!-- 服務詳情：「略過試用」（等於提早開始計費） -->
+    <!-- 服務詳情：「略過試用」（等於提早開始計費）、「訂閱已取消／到期，請續訂」橫幅（只會因欠費或合約到期出現，lab 兩者都關了） -->
     <t t-name="woow_paas_platform.ServiceDetailPage" t-inherit="woow_paas_platform.ServiceDetailPage" t-inherit-mode="extension">
         <xpath expr="//WoowButton[@t-if='service.subscription and service.subscription.is_trial']" position="replace"/>
+        <xpath expr="//div[@t-if='renewalBanner']" position="replace"/>
+    </t>
+
+    <!-- 服務卡片：訂閱徽章（啟用中／已續訂／已到期／已取消）；服務本身的狀態徽章照舊 -->
+    <t t-name="woow_paas_platform.ServiceCard" t-inherit="woow_paas_platform.ServiceCard" t-inherit-mode="extension">
+        <xpath expr="//SubscriptionBadge" position="replace"/>
     </t>
 
     <!-- 換方案：退點／計費說明、餘額不足＋儲值連結（只留「立即生效、會重啟」的資源說明） -->
