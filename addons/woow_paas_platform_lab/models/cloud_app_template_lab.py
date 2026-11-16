@@ -52,6 +52,18 @@ LAB_APISERVER_CIDRS = "10.43.0.1/32,192.168.2.10/32"
 # pi-agent 方案 8GB → requests 4Gi，本機 4GB 節點（可配置約 3.7GiB）永遠排不上；omnigent 的 runner 會拿 8Gi limits。
 # ⚠ 這些方案在上游是 noupdate=1：別的模組用 XML <record> 覆寫在 -u 時會被略過（2026-11-15 實測），
 #   所以用 Python 寫；上游 -u 也不會洗回去。
+# 使用者 2026-11-16：內部使用，關閉扣款流程（前台也藏掉點數／儲值／帳單，見 static/src/paas/lab_no_billing.*）。
+# 做法是平台原生支援的「0 元一期」：方案一律 0 元、不試用 → 開通／換方案／續訂都不碰錢包、不開電子發票、不會欠款；
+# 再停掉會扣款或會因「沒在扣款」而告警的排程。原本的價格與試用長度第一次套用時存進下面這個參數，要恢復收費照它還原。
+LAB_PLAN_TERMS_SNAPSHOT_PARAM = "woow_paas_platform_lab.plan_terms_before_charging_off"
+LAB_CHARGING_CRONS_OFF = (
+    "woow_subscription.ir_cron_billing_run",                # 每日計費（模組預設就關；保持關）
+    "woow_subscription.ir_cron_lifecycle_run",              # 合約到期（同上）
+    "payment_ecpay_ecpg.ir_cron_ecpay_subscription_run",    # 綠界信用卡定期扣款
+    "woow_paas_platform.ir_cron_low_balance_warning",       # 續訂前餘額不足提醒
+    "woow_paas_platform.ir_cron_billing_silence_alert",     # 「計費靜默」告警（扣款關掉後會一直誤報）
+)
+
 LAB_PLAN_SPECS = {
     "woow_paas_platform.plan_pi_agent_monthly": {"cs_ram_gb": 3.0},
     "woow_paas_platform.plan_pi_agent_yearly": {"cs_ram_gb": 3.0},
@@ -237,4 +249,28 @@ class CloudAppTemplateLab(models.Model):
                 plan.sudo().write(diff)
                 changed.append(xmlid.split(".")[-1])
         _logger.info("woow_paas_platform_lab: plan specs adjusted: %s", changed or "already set")
+        return True
+
+
+    @api.model
+    def _lab_disable_charging(self):
+        """方案 0 元＋不試用＋停用扣款相關排程（每次 -u 都再套一次；已是 0 元／已停用就不動）。"""
+        Plan = self.env["woow.subscription.plan"].sudo().with_context(active_test=False)
+        icp = self.env["ir.config_parameter"].sudo()
+        plans = Plan.search([])
+        if not icp.get_param(LAB_PLAN_TERMS_SNAPSHOT_PARAM):
+            icp.set_param(LAB_PLAN_TERMS_SNAPSHOT_PARAM, json.dumps(
+                {str(p.id): [p.price, p.trial_length, p.trial_unit] for p in plans}, ensure_ascii=False))
+            _logger.info("woow_paas_platform_lab: plan terms snapshot saved (%s plans)", len(plans))
+        to_zero = plans.filtered(lambda p: p.price or p.trial_length)
+        if to_zero:
+            to_zero.write({"price": 0.0, "trial_length": 0})
+        crons_off = []
+        for xmlid in LAB_CHARGING_CRONS_OFF:
+            cron = self.env.ref(xmlid, raise_if_not_found=False)
+            if cron and cron.active:
+                cron.sudo().write({"active": False})
+                crons_off.append(xmlid.split(".")[-1])
+        _logger.info("woow_paas_platform_lab: charging off — plans zeroed: %s, crons disabled: %s",
+                     len(to_zero), crons_off or "already off")
         return True

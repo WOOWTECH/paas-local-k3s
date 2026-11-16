@@ -103,12 +103,18 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - **Bitnami postgresql／redis**：上游 is_active=False、映像只剩 `:latest`（浮動）；chart 自帶 NetworkPolicy 被 operator 的
   `paas-operator-tenant-netpol-guard` 擋 → overlay 關掉 chart NP；Redis 上游零方案 → overlay 補「Redis 月繳（lab）」。
 - **訂閱日記帳**：fresh DB 沒設 → overlay `_lab_setup_billing` 自動補。
-- **計費排程在 lab 是關的（模組預設，正式站切換時才開）**：`woow_subscription` 的每日計費（`_cron_billing_run`）與
-  合約到期（`_cron_lifecycle_run`）裝好時就是 `active=False`。所以 lab 試用到期**不會扣款、不會停權**（停權只發生在
-  每日計費連續扣款失敗→自動取消、或合約到期之後）。不要為了「讓點數被扣」去打開它們。
-- **內部帳號點數（2026-11-16 使用者決定用平台贈點）**：後台 聯絡人 → 開那個人 → 動作 →「Grant Wallet Credits」
-  （限設定管理員）。已贈：Administrator 1,000,000 點（WT00000001）、Lab Tenant 100,000 點（WT00000002）。
-  計費關著時，點數用在會先檢查餘額的操作：用錢包付發票、換方案、續訂、提前結束試用、買 LLM 額度。新同仁帳號一樣從 0 開始，要各自贈點。
+- **內部使用、不收費（使用者 2026-11-16）**：overlay 18.0.1.0.13 起
+  - 後端 `_lab_disable_charging`（每次 -u 再套一次）：所有 `woow.subscription.plan` 價格 0、試用 0 → 開通／換方案／續訂都是
+    平台原生的「0 元一期」（不碰錢包、不開電子發票、不會欠款）；停用排程：每日計費、合約到期（模組預設就關）、綠界定期扣款、
+    續訂前餘額不足提醒、計費靜默告警。保留 `ir_cron_subscription_lifecycle`（已刪除服務的保留與清除靠它）。
+  - 前台 `static/src/paas/lab_no_billing.{xml,js}`：拿掉頁首 CREDITS、頭像選單的點數與發票、側欄「財務」三項、手機底欄帳單、
+    總覽帳單卡、市集與建服務頁的價格、方案卡價格與月繳／年繳切換、服務總覽的價格／試用／付款日、略過試用、換方案的退點說明、
+    續訂的金額、付款方式、發票偏好；帳單類網址一律導回總覽；舊的試用訂閱徽章顯示成「使用中」。只是外觀，後端 API 還在。
+  - 原本的價格與試用長度存在 `ir.config_parameter` `woow_paas_platform_lab.plan_terms_before_charging_off`（JSON：plan id →
+    [price, trial_length, trial_unit]）。**要恢復收費**：先拿掉 `lab_overrides.xml` 的 `_lab_disable_charging` 與 manifest 的
+    `lab_no_billing.*`、跑 `tools/lab-overlay-update.sh`，再用 odoo shell 照快照寫回方案、重新打開需要的排程。
+  - 已存在的 17 個測試訂閱價格在開通時就凍結（引擎不准改），但每日計費關著，不會扣款也不會因此停權。
+  - 11-16 早先給的贈點（Administrator 1,000,000＝WT00000001、Lab Tenant 100,000＝WT00000002）還在錢包裡，只是前台看不到、用不到。
 - **公開網址**：租戶服務是 `paas-cs-<ws8>-<svc8>.woowtech.io`，跟正式站同一層網域，名稱不會撞（帶亂數），但肉眼分不出是 lab。
 
 ## 執行紀錄
@@ -139,3 +145,4 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
   paas-netpol（無關 pod 連不到 operator、平台照常）；overlay 18.0.1.0.10。
 - 2026-11-16 HAOS 移除（overlay 18.0.1.0.11；殘留 DataVolume 刪除、cluster5 釋出 32GiB 的 PV）；報告改正正式站使用數（排除 staging）。\n- 2026-11-16 平台裝 website（overlay 18.0.1.0.12），建立 woowtech Cloud 一頁式首頁（`site/`）；匿名／手機／登入頁／編輯器都實測過。\n
 - 2026-11-16 用平台贈點精靈給 Administrator 1,000,000 點、Lab Tenant 100,000 點（內部使用）；確認 lab 計費排程本來就是關的、試用到期不會停權。
+- 2026-11-16 內部使用不收費：overlay 18.0.1.0.13（方案 0 元＋不試用＋停用 5 個扣款相關排程；前台隱藏點數／儲值／帳單／價格）。

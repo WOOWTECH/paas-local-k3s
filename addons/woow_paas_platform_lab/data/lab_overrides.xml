@@ -27,5 +27,8 @@
 
         <!-- 訂閱計費日記帳（fresh install 沒人設 → 開通服務會被拒） -->
         <function model="woow_paas_platform.cloud_app_template" name="_lab_setup_billing"/>
+
+        <!-- 內部使用：關閉扣款（方案 0 元、不試用、停用扣款相關排程；使用者 2026-11-16） -->
+        <function model="woow_paas_platform.cloud_app_template" name="_lab_disable_charging"/>
     </data>
 </odoo>

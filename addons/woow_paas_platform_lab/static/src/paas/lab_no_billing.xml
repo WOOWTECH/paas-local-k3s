@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <!-- 使用者 2026-11-16：內部使用不需要點數／儲值／帳單 → lab 前台隱藏所有財務入口與價格。
+         只是外觀；扣款本身由後端 _lab_disable_charging 關掉（方案 0 元、不試用、扣款排程停用）。
+         側欄／底欄／總覽卡片／帳單路由／試用徽章在 lab_no_billing.js。 -->
+
+    <!-- 頁首：CREDITS 餘額徽章＋儲值按鈕 -->
+    <t t-name="woow_paas_platform.Header" t-inherit="woow_paas_platform.Header" t-inherit-mode="extension">
+        <xpath expr="//div[@class='o_woow_credits_badge']" position="replace"/>
+    </t>
+
+    <!-- 頭像選單：點數（連到儲值商店）與發票 -->
+    <t t-name="woow_paas_platform.AccountMenu" t-inherit="woow_paas_platform.AccountMenu" t-inherit-mode="extension">
+        <xpath expr="//button[@class='o_woow_account_menu__credits']" position="replace"/>
+        <xpath expr="//button[span='Invoices']" position="replace"/>
+    </t>
+
+    <!-- 服務市集卡片的起價 -->
+    <t t-name="woow_paas_platform.AppCard" t-inherit="woow_paas_platform.AppCard" t-inherit-mode="extension">
+        <xpath expr="//div[@class='o_woow_app_card_price']" position="replace"/>
+    </t>
+
+    <!-- 建立服務頁：範本起價、「訂閱方案」說明改成資源規格、底部總價 -->
+    <t t-name="woow_paas_platform.AppConfigurationPage" t-inherit="woow_paas_platform.AppConfigurationPage" t-inherit-mode="extension">
+        <xpath expr="//span[@class='o_woow_template_price']" position="replace"/>
+        <xpath expr="//div[@class='o_woow_section_header'][div/h2='Subscription Plan']" position="replace">
+            <div class="o_woow_section_header">
+                <WoowIcon name="'memory'" size="24"/>
+                <div>
+                    <h2>方案</h2>
+                    <p>選擇這個服務的資源規格（CPU、記憶體、儲存空間）</p>
+                </div>
+            </div>
+        </xpath>
+        <xpath expr="//PlanTotalBar" position="replace"/>
+    </t>
+
+    <!-- 方案卡片：價格與月繳／年繳切換 -->
+    <t t-name="woow_paas_platform.PlanSelector" t-inherit="woow_paas_platform.PlanSelector" t-inherit-mode="extension">
+        <xpath expr="//div[@t-if='showCycleToggle']" position="replace"/>
+        <xpath expr="//div[@class='o_woow_plan_card__price']" position="replace"/>
+    </t>
+
+    <!-- 服務總覽「方案與帳單」卡：只留方案名稱（拿掉價格、試用、首次扣款日、下次付款日） -->
+    <t t-name="woow_paas_platform.OverviewTab" t-inherit="woow_paas_platform.OverviewTab" t-inherit-mode="extension">
+        <xpath expr="//WoowCard[@t-if='subscription']//h3" position="replace">
+            <h3>方案</h3>
+        </xpath>
+        <xpath expr="//span[@t-if='subscription.is_trial']" position="replace"/>
+        <xpath expr="//t[@t-if='subscription.plan_price']" position="replace"/>
+        <xpath expr="//t[@t-if='subscription.is_trial']" position="replace"/>
+        <xpath expr="//div[@t-elif='subscription.next_payment']" position="replace"/>
+    </t>
+
+    <!-- 服務詳情：「略過試用」（等於提早開始計費） -->
+    <t t-name="woow_paas_platform.ServiceDetailPage" t-inherit="woow_paas_platform.ServiceDetailPage" t-inherit-mode="extension">
+        <xpath expr="//WoowButton[@t-if='service.subscription and service.subscription.is_trial']" position="replace"/>
+    </t>
+
+    <!-- 換方案：退點／計費說明、餘額不足＋儲值連結（只留「立即生效、會重啟」的資源說明） -->
+    <t t-name="woow_paas_platform.ChangePlanModal" t-inherit="woow_paas_platform.ChangePlanModal" t-inherit-mode="extension">
+        <xpath expr="//div[@class='o_woow_change_plan__advisory']" position="replace"/>
+        <xpath expr="//div[@class='o_woow_change_plan__advisory o_woow_change_plan__advisory--trial']" position="replace"/>
+        <xpath expr="//div[@t-if='!props.activatingTrial'][@class='o_woow_change_plan__notice']" position="replace"/>
+        <xpath expr="//div[@t-if='balanceBlocked and !state.confirmingTrialEnd']" position="replace"/>
+        <!-- 底部「新方案總計 N 點/月」；留一個空的同 class 元素，按鈕才會照舊靠右 -->
+        <xpath expr="//PlanTotalBar" position="replace">
+            <span class="o_woow_plan_total"/>
+        </xpath>
+    </t>
+
+    <!-- 總覽「近期動態」：內容全是錢包交易（儲值、扣款、贈點），整張拿掉 -->
+    <t t-name="woow_paas_platform.DashboardPage" t-inherit="woow_paas_platform.DashboardPage" t-inherit-mode="extension">
+        <xpath expr="//div[@class='o_woow_dashboard_grid']" position="replace"/>
+    </t>
+
+    <!-- 續訂（恢復已取消的服務）：拿掉金額、錢包餘額、付款人與儲值連結 -->
+    <t t-name="woow_paas_platform.RenewSubscriptionModal" t-inherit="woow_paas_platform.RenewSubscriptionModal" t-inherit-mode="extension">
+        <xpath expr="//ul[@class='o_woow_renew_modal__facts']" position="replace">
+            <ul class="o_woow_renew_modal__facts">
+                <li>確認後服務會在幾分鐘內自動恢復。</li>
+                <li t-if="retentionUntil" t-esc="retentionText"/>
+            </ul>
+        </xpath>
+        <xpath expr="//span[@class='o_woow_renew_modal__plan_price']" position="replace"/>
+        <xpath expr="//div[@class='o_woow_renew_modal__summary']" position="replace"/>
+        <xpath expr="//p[@t-if='!payerIsViewer']" position="replace"/>
+        <xpath expr="//a[@class='o_woow_renew_modal__topup']" position="replace"/>
+        <xpath expr="//WoowButton[@onClick.bind='onConfirm']/t[@t-else='']" position="replace">
+            <t t-else="">
+                <WoowIcon name="'autorenew'" size="18"/>
+                續訂
+            </t>
+        </xpath>
+    </t>
+
+    <!-- 工作區「已訂閱服務」視窗：價格與計費週期 -->
+    <t t-name="woow_paas_platform.SubscribedServicesModal" t-inherit="woow_paas_platform.SubscribedServicesModal" t-inherit-mode="extension">
+        <xpath expr="//div[@class='o_woow_svc_modal_summary_right']" position="replace"/>
+    </t>
+
+    <!-- 設定：付款方式（自動儲值用的信用卡） -->
+    <t t-name="woow_paas_platform.SettingsPage" t-inherit="woow_paas_platform.SettingsPage" t-inherit-mode="extension">
+        <xpath expr="//WoowCard[div[@t-on-click='goToPaymentMethods']]" position="replace"/>
+    </t>
+
+    <!-- 個人資料：電子發票載具偏好 -->
+    <t t-name="woow_paas_platform.ProfilePage" t-inherit="woow_paas_platform.ProfilePage" t-inherit-mode="extension">
+        <xpath expr="//WoowCard[div/h2='Invoice Preference']" position="replace"/>
+    </t>
+</templates>
