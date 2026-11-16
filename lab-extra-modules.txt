@@ -7,3 +7,5 @@ woow_odoo_line_liff       # woowtech LINE 全套裝：Bridge（通知、Rich Men
 woow_odoo_livechat_line   # woowtech LINE 全套裝：線上客服接 LINE
 woow_document_management  # woowtech 文件檔案（資料夾、權限、Portal 存取）
 woow_service_hub          # woowtech SaaS 線上服務管理（服務中心；不在映像裡，addons/woow_service_hub 掛進去）
+woow_website_auth         # woowtech web auth（網站頁面存取控制；不在映像裡，addons/woow_website_auth 掛進去）
+woow_paas_lab_access      # 本機：讓 web auth 規則也管 /woow 平台與平台 API；群組「woowtech Cloud 使用者」

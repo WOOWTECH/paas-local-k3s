@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 初始規則（noupdate：裝好之後由管理員在「網站 › 存取控制」自己改，模組升級不會蓋掉） -->
+    <data noupdate="1">
+        <record id="rule_platform" model="woow.website.auth.rule">
+            <field name="name">woowtech Cloud 平台（/woow 與平台 API）</field>
+            <field name="sequence">10</field>
+            <field name="page_type">dynamic</field>
+            <field name="path_prefix">/woow</field>
+            <field name="auth_mode">group</field>
+            <field name="group_id" ref="group_cloud_user"/>
+            <field name="deny_action">redirect_login</field>
+        </record>
+        <record id="rule_courses" model="woow.website.auth.rule">
+            <field name="name">課程（只給登入的人）</field>
+            <field name="sequence">20</field>
+            <field name="page_type">dynamic</field>
+            <field name="path_prefix">/slides</field>
+            <field name="auth_mode">signed_in</field>
+            <field name="deny_action">redirect_login</field>
+        </record>
+    </data>
+</odoo>

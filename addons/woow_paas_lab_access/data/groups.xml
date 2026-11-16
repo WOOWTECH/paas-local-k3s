@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 放在自己的分類，使用者表單的「存取權限」分頁才看得到這個勾選（沒分類的群組只有開發者模式看得到） -->
+    <record id="module_category_cloud" model="ir.module.category">
+        <field name="name">woowtech Cloud</field>
+        <field name="sequence">5</field>
+    </record>
+    <record id="group_cloud_user" model="res.groups">
+        <field name="name">woowtech Cloud 使用者</field>
+        <field name="category_id" ref="module_category_cloud"/>
+        <field name="comment">可以使用 woowtech Cloud 平台（/woow 與平台 API）。由「網站 › 存取控制」的 /woow 規則把關；管理員永遠可用。</field>
+    </record>
+</odoo>

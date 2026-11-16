@@ -110,6 +110,19 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - 網站：線上客服**不**在首頁／登入頁顯示聊天按鈕（網站的即時聊天頻道清空）；「課程」放進首頁上方選單（`site/patch_02_apps.py`）。
 - LINE 模組裝好還要 LINE 官方帳號的 Channel 設定（Messaging API／LIFF）才會動。
 
+## 存取控制：woowtech web auth（2026-11-16，overlay 18.0.1.0.16）
+- 使用者要用 woowtech 自製的 web auth 管理、限制可以用 woowtech Cloud 的人，**網站和平台都管**。
+- `woow_website_auth`（Gitea `mirror-internal/Woow_odoo_website_auth` @ a11e983，vendored 進 `addons/`）：規則依網址前綴攔截，
+  但它只攔「網站前台」路由；/woow 與平台 API 都是 `website=False`，原本管不到。
+- `addons/woow_paas_lab_access/`（本機轉接模組，獨立成模組是為了日後解除安裝 web auth 時不會連帶拆掉 overlay）：
+  在 `ir.http._pre_dispatch`（登入驗證之後）對 `auth='user'` 的非網站路由套用同一套規則；平台模組的端點一律多比一條 `/woow`，
+  所以一條 `/woow` 規則就管住平台頁面與 API。機器路由（none／public／bearer：operator 回呼、OAuth、HA）不碰；管理員永遠放行。
+- 群組「woowtech Cloud 使用者」（使用者表單 › 存取權限 › woowtech Cloud）；安裝時把當時的帳號都加入（admin、lab-tenant）。
+- 初始規則（noupdate，之後在「網站 › 設置 › Auth Rules」自己改）：`/woow` 限群組（已登入但不在群組→「存取受限」頁）、`/slides` 限登入。
+- 影響：LINE LIFF 會自動建 Portal 帳號、工作區邀請也會建帳號——這些人要等管理員加進群組才能用平台。註冊頁本來就關（/web/signup 404）。
+- 實測：不在群組的 Portal 帳號 /woow→/website/access-denied、平台 API 被擋、課程可看；群組成員與管理員正常；未登入看課程→登入頁；
+  機器路由照常回 401／400。測試帳號已刪。
+
 ## 已知問題與 lab 專屬調整（2026-11-15 實測）
 - **TUF 節點的 pod 網路不通**：該節點上的 pod 連 CoreDNS 都逾時（叢集既有問題，需上機查 flannel／防火牆）。
   operator `config.tenantAvoidNodes` 讓租戶 pod 避開 TUF 與筆電；平台本身用 post-renderer 的 nodeAffinity 避開。
@@ -168,3 +181,5 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - 2026-11-16 用平台贈點精靈給 Administrator 1,000,000 點、Lab Tenant 100,000 點（內部使用）；確認 lab 計費排程本來就是關的、試用到期不會停權。
 - 2026-11-16 內部使用不收費：overlay 18.0.1.0.13（方案 0 元＋不試用＋停用 5 個扣款相關排程；前台隱藏點數／儲值／帳單／價格）。
 - 2026-11-16 overlay 18.0.1.0.14：方案名稱去計費字樣、後台帳務選單與贈點動作隱藏、前台訂閱徽章／續訂橫幅／帳務通知隱藏；兩帳號 24 頁＋通知面板驗收乾淨。
+- 2026-11-16 overlay 18.0.1.0.15：裝課程、線上客服、LINE 三件、文件、服務中心；庫存選單藏起來；網站不顯示客服按鈕、選單加課程。
+- 2026-11-16 overlay 18.0.1.0.16：裝 woowtech web auth＋轉接模組 woow_paas_lab_access（/woow 限群組「woowtech Cloud 使用者」、課程限登入）。
