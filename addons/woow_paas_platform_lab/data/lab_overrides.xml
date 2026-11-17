@@ -2,14 +2,13 @@
 <odoo>
     <!-- noupdate=0：每次 -u 都重套（上游 seed 也是 noupdate=0，會先洗回預設，本模組後載入 ⇒ 我們的值贏） -->
     <data noupdate="0">
-        <!-- 隱藏 Home Connect（Smart Home）：停用唯一的範本，前台建不出來 -->
+        <!-- 隱藏 Home Connect（Smart Home）與 Security Access：停用唯一的兩筆範本，前台建不出來。
+             （2026-11-17 曾為 Cloudflare Tunnel WebGUI 打開 SA，11-18 使用者要求移除，恢復隱藏。） -->
         <record id="woow_paas_platform.smart_home_home_assistant" model="woow_paas_platform.smart_home_template">
             <field name="is_active" eval="False"/>
         </record>
-        <!-- Security Access 打開（2026-11-17 使用者：Cloudflare Tunnel WebGUI 的開通走平台 Security Access）。
-             上游 seed 沒寫 is_active，只拿掉舊的 False 會留在 DB → 明確寫 True。lab 沒設登入方式（IdP），只能開公開網址。 -->
         <record id="woow_paas_platform.security_access_default" model="woow_paas_platform.security_access_template">
-            <field name="is_active" eval="True"/>
+            <field name="is_active" eval="False"/>
         </record>
 
         <!-- 本機叢集只有 local-path -->
@@ -22,8 +21,8 @@
              Cloudflare Tunnel WebGUI（2026-11-17；市集看得到） -->
         <function model="woow_paas_platform.cloud_app_template" name="_lab_ensure_push_templates"/>
 
-        <!-- Cloudflare Tunnel WebGUI 的 OAuth client（device flow＋security-access:routes） -->
-        <function model="woow_paas_platform.cloud_app_template" name="_lab_ensure_cf_webgui_oauth_client"/>
+        <!-- 11-18 移除：Cloudflare Tunnel WebGUI 專用的 OAuth client（連同它的 token／device code，FK 都是 cascade） -->
+        <function model="woow_paas_platform.cloud_app_template" name="_lab_remove_cf_webgui_oauth_client"/>
 
         <!-- 6 個範本的 chart／image 座標改指 ghcr.io；其餘範本 is_hidden -->
         <function model="woow_paas_platform.cloud_app_template" name="_lab_apply_registry_overrides"/>

@@ -235,38 +235,28 @@ LAB_PUSH_TEMPLATES = (
     {"slug": "cf-tunnel-webgui", "name": "Cloudflare Tunnel WebGUI", "chart": "cf-tunnel-webgui", "version": "0.1.1",
      "port": 8080, "ingress": True, "category": "devops", "plan": "Cloudflare Tunnel WebGUI（內部）",
      "admin_gui": True,
-     "short": "把同工作區的服務一次開到外網：PaaS 連結（Security Access）、Token、或你自己的 Cloudflare",
+     "short": "把同工作區的服務開到外網：PaaS 連結（Security Access）、Token、或你自己的 Cloudflare",
      "tags": ["cloudflare", "tunnel", "security-access", "webgui"],
      "docs": "https://github.com/WOOWTECH/Woow_k3s_cf_tunnel_webgui#readme",
      "icon": "static/description/cf-tunnel-webgui.png",
+     # PaaS 連結用 chart 預設（WOOW 正式站 aiot.woowtech.io、client woow-ha-smart-home、不寫路由），同 Podman／HA 版。
+     # 11-18 前 lab 指向本機平台＋一鍵 API，使用者要求移除後改回預設。
      "values": {
-         # 映像由 GitHub Actions 建（release.yml，tag v1.3.0，amd64＋arm64，GHCR 公開 package）
+         # 映像由 GitHub Actions 建（release.yml，tag v1.3.1，amd64＋arm64，GHCR 公開 package）
          "image": {"repository": "ghcr.io/woowtech/cf-tunnel-webgui",
                    "tag": "1.3.1@sha256:5abd92d634bfa062c26126564c43fb63dd1fbd6fdc0cb6f9ccb0603729ef4a1c"},
-         "paas": {"apiBase": "https://paas-lab.woowtech.io", "clientId": "woow-cf-tunnel-webgui",
-                  "routesWrite": True, "routeDomain": "woowtech.io"},
      },
      "description": "Cloudflare Tunnel 網頁管理介面（PaaS 版），與 Podman 版、Home Assistant 外掛版同樣的五個頁面與三種連結方式。\n"
-                    "• PaaS 連結：用平台帳號登入，選這個工作區的 Security Access，勾選工作區裡的服務一次開通公開網址"
-                    "（<名稱>.woowtech.io，不需要 Cloudflare 帳號）。\n"
+                    "• PaaS 連結：用 WOOW PaaS（aiot.woowtech.io）帳號登入，連結 Security Access；網址在 PaaS 入口網站設定，"
+                    "WebGUI 會列出這個工作區每個服務的內部位址。\n"
                     "• Token 連結：貼上 Cloudflare tunnel token。\n"
-                    "• 客製連結：登入你自己的 Cloudflare 帳號，自動建 tunnel、DNS 與規則。\n"
+                    "• 客製連結：登入你自己的 Cloudflare 帳號，勾選工作區裡的服務，一次建好 tunnel、DNS 與規則。\n"
                     "登入帳號 admin，密碼是這個服務的管理員密碼。開出去的網址是公開的，請確認服務本身有登入保護。"},
 )
 
-# Cloudflare Tunnel WebGUI 的 OAuth client（device flow）。上游只有 HA 用的兩個 client；
-# security-access:routes 是 overlay 新增的 scope（controllers/cf_webgui_api.py）。
-CF_WEBGUI_OAUTH_CLIENT = {
-    "name": "Cloudflare Tunnel WebGUI",
-    "client_id": "woow-cf-tunnel-webgui",
-    "client_type": "public",
-    "require_pkce": True,
-    "redirect_uri_match_mode": "exact",
-    "redirect_uris": "urn:ietf:wg:oauth:2.0:oob",
-    "grant_types": "urn:ietf:params:oauth:grant-type:device_code,refresh_token",
-    "scopes": "workspace:read security-access:read security-access:tunnel security-access:routes",
-    "is_active": True,
-}
+# 11-18 使用者要求移除 lab 上為 WebGUI 加的「一鍵開通」API 與它的 OAuth client（連同 SA 恢復隱藏）。
+# 每次 -u 都確認這個 client 不在（它的 token／code／device code 都是 ondelete=cascade）。
+REMOVED_OAUTH_CLIENT_IDS = ("woow-cf-tunnel-webgui",)
 
 
 class CloudAppTemplateLab(models.Model):
@@ -436,19 +426,13 @@ class CloudAppTemplateLab(models.Model):
         return True
 
     @api.model
-    def _lab_ensure_cf_webgui_oauth_client(self):
-        """Cloudflare Tunnel WebGUI 的 OAuth client（冪等；值不同就對齊）。"""
+    def _lab_remove_cf_webgui_oauth_client(self):
+        """移除 WebGUI 專用的 OAuth client（冪等；不存在就什麼都不做）。"""
         Client = self.env["woow_paas_platform.oauth_client"].sudo().with_context(active_test=False)
-        client = Client.search([("client_id", "=", CF_WEBGUI_OAUTH_CLIENT["client_id"])], limit=1)
-        if not client:
-            Client.create(dict(CF_WEBGUI_OAUTH_CLIENT))
-            _logger.info("woow_paas_platform_lab: OAuth client %s created", CF_WEBGUI_OAUTH_CLIENT["client_id"])
-            return True
-        diff = {k: v for k, v in CF_WEBGUI_OAUTH_CLIENT.items() if k != "client_id" and client[k] != v}
-        if diff:
-            client.write(diff)
-        _logger.info("woow_paas_platform_lab: OAuth client %s: %s", CF_WEBGUI_OAUTH_CLIENT["client_id"],
-                     sorted(diff) or "already set")
+        clients = Client.search([("client_id", "in", list(REMOVED_OAUTH_CLIENT_IDS))])
+        if clients:
+            clients.unlink()
+        _logger.info("woow_paas_platform_lab: removed OAuth clients: %s", clients.ids or "none present")
         return True
 
     @api.model

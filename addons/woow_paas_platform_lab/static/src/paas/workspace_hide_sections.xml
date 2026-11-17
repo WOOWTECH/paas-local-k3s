@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
-    <!-- 隱藏 Smart Home（Home Connect）的所有入口（使用者 2026-11-15：先不處理、隱藏）。
-         Security Access 2026-11-17 起打開（Cloudflare Tunnel WebGUI 的開通走它），只藏 Smart Home。
-         2026-11-15 瀏覽器實測：只拿掉 section 不夠，「探索更多服務」還有卡片（serviceTypes 迴圈）。 -->
+    <!-- 隱藏 Smart Home（Home Connect）與 Security Access 的所有入口（使用者 2026-11-15：先不處理、隱藏）。
+         2026-11-15 瀏覽器實測：只拿掉兩個 section 不夠，「探索更多服務」還有兩張卡片（serviceTypes 迴圈）。 -->
     <t t-name="woow_paas_platform.WorkspaceDetailPage" t-inherit="woow_paas_platform.WorkspaceDetailPage" t-inherit-mode="extension">
-        <!-- 兩個 section 共用同一個 class；Smart Home 那個是迴圈 state.smartHomes 的 -->
-        <xpath expr="//section[@class='o_woow_smart_homes_section'][.//t[@t-foreach='state.smartHomes']]" position="replace"/>
-        <!-- 「探索更多服務」三張卡片留雲端服務與安全存取（action: marketplace／security-access／smarthome） -->
+        <!-- 兩個 section 共用同一個 class：第一條 xpath 移掉第一個之後，第二條就命中原本的第二個 -->
+        <xpath expr="//section[@class='o_woow_smart_homes_section']" position="replace"/>
+        <xpath expr="//section[@class='o_woow_smart_homes_section']" position="replace"/>
+        <!-- 「探索更多服務」三張卡片只留雲端服務（action: marketplace／security-access／smarthome） -->
         <xpath expr="//t[@t-foreach='serviceTypes']/div" position="attributes">
-            <attribute name="t-if">service.action !== 'smarthome'</attribute>
+            <attribute name="t-if">service.action === 'marketplace'</attribute>
         </xpath>
     </t>
     <!-- 工作區列表頁（還沒有工作區時）的三張介紹卡片：沒有 action 欄位，用 icon 分（cloud／security／home_iot_device） -->
     <t t-name="woow_paas_platform.WorkspaceListPage" t-inherit="woow_paas_platform.WorkspaceListPage" t-inherit-mode="extension">
         <xpath expr="//t[@t-foreach='serviceTypes']/div" position="attributes">
-            <attribute name="t-if">service.icon !== 'home_iot_device'</attribute>
+            <attribute name="t-if">service.icon === 'cloud'</attribute>
         </xpath>
     </t>
 </templates>

@@ -190,25 +190,27 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
   - 磁碟用量：kubelet 對 local-path（hostPath）報的是整顆磁碟，不能用 ⇒ DaemonSet `pvc-usage` 每 10 分鐘 du 每個 PVC 目錄；容量由 `pvc-capacity` 讀 PVC 大小（沒有容量 operator 會標「資料不完整」）。
   - 驗證：23 個執行中的服務 CPU／記憶體／磁碟全部 ok；平台 API 回 pi5 0.17 核心、1.03／3.12 GiB、磁碟 13.43／30 GiB。cluster3 離線所以沒有它的數字；TUF 上沒有 PaaS 服務、不收。
 
-## Cloudflare Tunnel WebGUI（2026-11-17，overlay 18.0.1.0.19 起）
-- 使用者：「cf web gui PaaS 版本，功能和 HA addon／Podman 版一模一樣，在工作區開通後，同工作區的服務都能透過它開外網（例如五套 pi agent 一次開通）」→ 開通走平台 Security Access（同仁不需要 Cloudflare 帳號）。
+## Cloudflare Tunnel WebGUI（2026-11-17 起；11-18 調整）
+- 使用者：「cf web gui PaaS 版本，功能和 HA addon／Podman 版一模一樣，在工作區開通後，同工作區的服務都能透過它開外網（例如五套 pi agent 一次開通）」。
 - 程式、chart、契約都在 GitHub `WOOWTECH/Woow_k3s_cf_tunnel_webgui`（公開；`docs/paas-api.md`）。
-  映像由該 repo 的 GitHub Actions 建（`ghcr.io/woowtech/cf-tunnel-webgui`，公開）；chart 從筆電 `helm push` 到 `oci://ghcr.io/woowtech/charts/cf-tunnel-webgui`（私有）。
-- overlay 做的事：
-  - 範本 `cf-tunnel-webgui`：`LAB_PUSH_TEMPLATES`＋`LAB_VISIBLE_SLUGS`，has_admin_gui＋helm_secret，同 pi-agent。
-  - 打開 Security Access（智慧家庭仍藏）。
-  - `controllers/cf_webgui_api.py` 五支 OAuth API：workspace lookup／services、routes check／bulk create／delete。
-  - 新 scope `security-access:routes`；OAuth client `woow-cf-tunnel-webgui`。
-  - `models/cloud_service_lab.py` 把 apiserver_cidrs 注入給這個範本，用來列同 namespace 的 Service。
-- 換版：
-  1. 打 tag 等 release 建好映像。
+  - 映像由該 repo 的 GitHub Actions 建：`ghcr.io/woowtech/cf-tunnel-webgui`，公開。
+  - chart 從筆電 `helm push` 到 `oci://ghcr.io/woowtech/charts/cf-tunnel-webgui`，私有。
+- 範本 `cf-tunnel-webgui`：`LAB_PUSH_TEMPLATES`＋`LAB_VISIBLE_SLUGS`，has_admin_gui＋helm_secret，同 pi-agent，有圖示。
+  - PaaS 連結用 chart 預設：WOOW 正式站 aiot.woowtech.io、client woow-ha-smart-home、不寫路由，跟 Podman／HA 版相同。
+  - `models/cloud_service_lab.py` 把 apiserver_cidrs 也注入給這個範本，用來列同 namespace 的 Service。
+- 11-17 曾在 lab 加過一些東西（overlay 18.0.1.0.19–21），11-18 使用者要求移除，overlay 18.0.1.0.22 已移除：
+  - 「一鍵開通」API：`controllers/cf_webgui_api.py` 五支 OAuth API，以及新 scope `security-access:routes`。
+  - OAuth client `woow-cf-tunnel-webgui`：連同 token 一起刪掉。
+  - 重新打開的 Security Access：已恢復隱藏。
+  - 當時的實測（lab-agents，服務 lab-cftw-1）：一個請求開通五個網址，約 18 秒，外網五個都通。
+- 換版步驟：
+  1. 打 tag，等 release 建好映像。
   2. 改 `LAB_PUSH_TEMPLATES` 的 version 與 image tag@digest。
-  3. `RESTART=0 tools/lab-overlay-update.sh`（只改資料）。
-  4. 後台對服務 `action_redeploy`，pod 會重啟，tunnel 由 autostart 接回。
-- 實測（lab-agents，服務 lab-cftw-1）：一個請求開通五個網址，約 18 秒；外網五個都通，pi-agent 用帳密登入 200。
+  3. 執行 `RESTART=0 tools/lab-overlay-update.sh`（只改資料時）。
+  4. 對服務 `action_redeploy`。
 - 坑：
-  - auth='none' 的 OAuth 端點寫路由前要 `sa.with_user(user).sudo()`。沒綁使用者時，`_check_operation_allowed` 一律失敗。
-  - 第一次部署 operator 讀 lab tunnel 設定逾時一次，route 沒建、服務 error。刪掉重建即可，平台建議的做法就是這個。
+  - 範本預設值在建服務時會存進服務的 helm_values。改範本不會影響既有服務，映像例外，所以要先改服務的 helm_values 再 redeploy。
+  - 第一次部署時 operator 讀 lab tunnel 設定逾時一次，route 沒建、服務 error。刪掉重建即可，這是平台建議的做法。
 
 ## 已知問題與 lab 專屬調整（2026-11-15 實測）
 - **TUF 節點的 pod 網路不通**：該節點上的 pod 連 CoreDNS 都逾時（叢集既有問題，需上機查 flannel／防火牆）。
