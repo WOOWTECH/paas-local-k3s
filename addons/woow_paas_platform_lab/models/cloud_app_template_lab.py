@@ -210,6 +210,23 @@ def lab_transform(slug, chart_name, values):
     return new_chart, new_values
 
 
+# 本機專用的兩個範本（2026-11-17，使用者選「先補推播功能再整組搬」）：把手架的 Odoo App 推播測試環境
+# （demo111／demo222／apporo-push-test＋woow-fcm-central）改由 PaaS 部署與管理。正式站沒有這兩個範本。
+# chart 原始碼在控制 repo charts/，推在 oci://ghcr.io/woowtech/charts（私有）。不在 LAB_VISIBLE_SLUGS，
+# 所以 _lab_apply_registry_overrides 會把它們藏起來：只由管理員用 tools/migrate/ 的腳本開服務。
+# 方案沒有 cs_* 規格 ⇒ 平台不覆寫資源，資源由服務自己的 helm_values 決定。
+LAB_PUSH_TEMPLATES = (
+    {"slug": "odoo-push-test", "name": "Odoo App 推播測試環境", "chart": "odoo-push-test", "version": "0.1.0",
+     "port": 8080, "ingress": True, "category": "web", "plan": "Odoo App 推播測試環境（內部）",
+     "description": "官方 Odoo 18 映像＋FCM 推播 sidecar（woow 走叢集內推播中心、apporo 走 Apporo 的 Cloud Run），"
+                    "給 Odoo App 測試用；可選擇沿用既有 Cloudflare tunnel 的網址。"},
+    {"slug": "fcm-central", "name": "FCM 推播中心", "chart": "fcm-central", "version": "0.1.0",
+     "port": 8000, "ingress": False, "category": "devops", "plan": "FCM 推播中心（內部）",
+     "description": "woow 品牌的 FCM 推播中心（whitelist-service＋token-vending-service＋postgres），"
+                    "只在叢集內提供服務、沒有公開網址；Google 推播金鑰與 TokenReview 權限要另外建。"},
+)
+
+
 class CloudAppTemplateLab(models.Model):
     _inherit = "woow_paas_platform.cloud_app_template"
 
@@ -295,6 +312,66 @@ class CloudAppTemplateLab(models.Model):
         _logger.info("woow_paas_platform_lab: plan specs adjusted: %s", changed or "already set")
         return True
 
+
+    @api.model
+    def _lab_ensure_push_templates(self):
+        """建立（或對齊 chart 版本）LAB_PUSH_TEMPLATES 的範本與各自一個 0 元內部方案。冪等。"""
+        Plan = self.env["woow.subscription.plan"].sudo()
+        done = []
+        for spec in LAB_PUSH_TEMPLATES:
+            vals = {
+                "name": spec["name"],
+                "slug": spec["slug"],
+                "helm_repo_url": "",
+                "helm_chart_name": GHCR_CHART_PREFIX + spec["chart"],
+                "helm_chart_version": spec["version"],
+                "workload_type": "container",
+                "admin_password_carrier": "config_json",
+                "app_admin_reset_kind": "none",
+                "credential_change_restart_scope": "service",
+                "category": spec["category"],
+                "default_port": spec["port"],
+                "ingress_enabled": spec["ingress"],
+                "has_admin_gui": False,
+                "full_description": spec["description"],
+            }
+            tmpl = self.sudo().with_context(active_test=False).search([("slug", "=", spec["slug"])], limit=1)
+            if not tmpl:
+                tmpl = self.sudo().create(dict(vals, helm_default_values="{}", is_active=True, is_hidden=True))
+                done.append(f"{spec['slug']} created")
+            else:
+                diff = {k: v for k, v in vals.items() if tmpl[k] != v}
+                if diff:
+                    tmpl.write(diff)
+                    done.append(f"{spec['slug']} updated {sorted(diff)}")
+            if not tmpl.subscription_plan_ids:
+                plan = Plan.create({
+                    "name": spec["plan"],
+                    "company_id": self.env.company.id,
+                    "service_type": "cloud_service",
+                    "interval_count": 1,
+                    "interval_unit": "month",
+                    "trial_unit": "day",
+                    "is_open_ended": True,
+                })
+                tmpl.write({"subscription_plan_ids": [(4, plan.id)]})
+                done.append(f"{spec['slug']} plan {plan.id}")
+            # 開服務時平台要找方案對應的訂閱商品（product.template.woow_subscription_plan_id），沒有就拒絕
+            Product = self.env["product.template"].sudo().with_context(active_test=False)
+            for plan in tmpl.subscription_plan_ids:
+                if not Product.search_count([("woow_subscription_plan_id", "=", plan.id)]):
+                    Product.create({
+                        "name": f"{plan.name} Subscription",
+                        "type": "service",
+                        "sale_ok": True,
+                        "invoice_policy": "order",
+                        "list_price": 0.0,
+                        "woow_is_subscription": True,
+                        "woow_subscription_plan_id": plan.id,
+                    })
+                    done.append(f"{spec['slug']} product for plan {plan.id}")
+        _logger.info("woow_paas_platform_lab: push-test templates: %s", done or "already set")
+        return True
 
     @api.model
     def _lab_disable_charging(self):

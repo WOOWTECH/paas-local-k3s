@@ -16,6 +16,9 @@
             <field name="value">local-path</field>
         </record>
 
+        <!-- 本機專用範本：Odoo App 推播測試環境＋FCM 推播中心（2026-11-17；藏起來、管理員用腳本開服務） -->
+        <function model="woow_paas_platform.cloud_app_template" name="_lab_ensure_push_templates"/>
+
         <!-- 6 個範本的 chart／image 座標改指 ghcr.io；其餘範本 is_hidden -->
         <function model="woow_paas_platform.cloud_app_template" name="_lab_apply_registry_overrides"/>
 

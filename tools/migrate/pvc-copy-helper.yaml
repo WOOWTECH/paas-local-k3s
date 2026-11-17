@@ -1,0 +1,22 @@
+# 同一台節點上 local-path PVC 之間的複製小幫手（root、hostPath 掛整個 local-path 目錄）。
+# 用法：kubectl apply 後 `kubectl exec pvc-copy-helper -- cp -a <舊目錄>/. <新目錄>/`，再用 manifest.py 比對兩邊。
+apiVersion: v1
+kind: Pod
+metadata: {name: pvc-copy-helper, namespace: paas-local-infra, labels: {woow.paas/lab-migrate: pvc-copy}}
+spec:
+  nodeName: woowtechcluster1-aorus-15p-xd
+  restartPolicy: Never
+  securityContext: {runAsUser: 0, runAsGroup: 0}
+  containers:
+    - name: helper
+      # 筆電上已經有的映像（GNU cp＋python3），免得現拉
+      image: docker.io/library/odoo@sha256:a419f4e386bbc4826b0850907e5831c94d2a963a0f067fe53205cea365678e01
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "7200"]
+      resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: "2", memory: 2Gi}}
+      volumeMounts:
+        - {name: storage, mountPath: /storage}
+        - {name: scripts, mountPath: /scripts}
+  volumes:
+    - {name: storage, hostPath: {path: /var/lib/rancher/k3s/storage, type: Directory}}
+    - {name: scripts, configMap: {name: lab-migrate-scripts}}

@@ -1,0 +1,9 @@
+apiVersion: v2
+name: odoo-push-test
+description: >-
+  Lab only (paas-lab). Odoo 18 on the official image with the FCM push sidecars used by the
+  Odoo App test environments (demo111 / demo222 / apporo-push-test): the woow sidecar talks to
+  the in-cluster fcm-central chart, the apporo sidecar to Apporo's Cloud Run central.
+type: application
+version: 0.1.0
+appVersion: "18.0"

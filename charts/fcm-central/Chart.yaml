@@ -1,0 +1,9 @@
+apiVersion: v2
+name: fcm-central
+description: >-
+  Lab only (paas-lab). The woow FCM push central (whitelist-service + token-vending-service +
+  postgres) packaged for the PaaS operator. Sidecars in other namespaces enroll with a projected
+  ServiceAccount token that whitelist-service checks with TokenReview.
+type: application
+version: 0.1.0
+appVersion: git-20777560

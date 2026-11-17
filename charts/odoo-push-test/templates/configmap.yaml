@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "opt.fullname" . }}-scripts
+  labels:
+    {{- include "opt.labels" . | nindent 4 }}
+data:
+  nginx.conf: |
+{{ .Files.Get "files/nginx.conf" | indent 4 }}
+  # pip deps for the addons on the PVC. Fails the pod when pip fails (a silent failure used to
+  # surface two steps later as a misleading "external dependency is not met").
+  pip-deps.sh: |
+    set -eu
+    SITE=/var/lib/odoo/.local/lib/python3.12/site-packages
+    mkdir -p "$SITE"
+    for REQS in {{ join " " .Values.odoo.pipRequirements }}; do
+      [ -f "$REQS" ] || { echo "skip $REQS (not present)"; continue; }
+      echo "=== pip install -r $REQS"
+      if ! pip3 install --break-system-packages --target="$SITE" -r "$REQS" >/tmp/pip.log 2>&1; then
+        tail -25 /tmp/pip.log; echo "FATAL: pip install failed for $REQS"; exit 1
+      fi
+      tail -3 /tmp/pip.log
+    done
+    chown -R 100:101 /var/lib/odoo/.local
+  # First-install database setup. Credentials come from the environment (Secret), never from here.
+  init-db.sh: |
+    set -eu
+    {{- if .Values.odoo.initDb }}
+    READY=$(python3 - <<'PY'
+    import os, psycopg2
+    try:
+        c = psycopg2.connect(host=os.environ["HOST"], port=os.environ["PORT"], dbname=os.environ["DB_NAME"],
+                             user=os.environ["USER"], password=os.environ["PASSWORD"])
+        cur = c.cursor()
+        cur.execute("SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='ir_module_module'")
+        print("yes" if cur.fetchone()[0] else "no")
+    except Exception:
+        print("no")
+    PY
+    )
+    if [ "$READY" != "yes" ]; then
+      echo "=== initializing $DB_NAME with base"
+      /entrypoint.sh odoo -d "$DB_NAME" -i base --stop-after-init --no-http
+    else
+      echo "database already initialized"
+    fi
+    # Only modules that are not installed yet: `odoo -i` on an installed module reloads its data in
+    # init mode and resets noupdate records, so it must not run on every start.
+    for M in {{ join " " .Values.odoo.installModules }}; do
+      if [ ! -d "/mnt/extra-addons/$M" ]; then echo "skip $M (not in /mnt/extra-addons)"; continue; fi
+      STATE=$(M="$M" python3 - <<'PY'
+    import os, psycopg2
+    c = psycopg2.connect(host=os.environ["HOST"], port=os.environ["PORT"], dbname=os.environ["DB_NAME"],
+                         user=os.environ["USER"], password=os.environ["PASSWORD"])
+    cur = c.cursor()
+    cur.execute("SELECT state FROM ir_module_module WHERE name = %s", (os.environ["M"],))
+    r = cur.fetchone()
+    print(r[0] if r else "absent")
+    PY
+    )
+      if [ "$STATE" = "installed" ]; then echo "$M already installed"; continue; fi
+      echo "=== install $M (state: $STATE)"
+      /entrypoint.sh odoo -d "$DB_NAME" -i "$M" --stop-after-init --no-http
+    done
+    {{- if .Values.odoo.firebaseProjectId }}
+    python3 - <<'PY'
+    import os, psycopg2
+    c = psycopg2.connect(host=os.environ["HOST"], port=os.environ["PORT"], dbname=os.environ["DB_NAME"],
+                         user=os.environ["USER"], password=os.environ["PASSWORD"])
+    cur = c.cursor()
+    cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name='ir_config_parameter'")
+    if cur.fetchone():
+        cur.execute("INSERT INTO ir_config_parameter (key, value, create_uid, write_uid, create_date, write_date) "
+                    "VALUES ('woow_fcm_push.firebase_project_id', %s, 1, 1, NOW(), NOW()) "
+                    "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", ({{ .Values.odoo.firebaseProjectId | quote }},))
+        c.commit()
+        print("firebase_project_id set")
+    PY
+    {{- end }}
+    {{- else }}
+    echo "initDb=false: database is restored separately, nothing to do"
+    {{- end }}

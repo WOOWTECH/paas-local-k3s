@@ -1,0 +1,287 @@
+{{- define "fc.labels" -}}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+app.kubernetes.io/part-of: fcm-central
+helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+{{- end -}}
+{{- define "fc.pull" -}}
+{{- $names := list -}}
+{{- range (concat (default list .Values.global.imagePullSecrets) (default list .Values.imagePullSecrets)) -}}
+{{- $n := "" -}}
+{{- if kindIs "map" . -}}{{- $n = .name -}}{{- else -}}{{- $n = . -}}{{- end -}}
+{{- if and $n (not (has $n $names)) -}}{{- $names = append $names $n -}}{{- end -}}
+{{- end -}}
+{{- if $names }}
+imagePullSecrets:
+{{- range $names }}
+  - name: {{ . }}
+{{- end }}
+{{- end -}}
+{{- end -}}
+{{- define "fc.placement" -}}
+{{- with .Values.nodeSelector }}
+nodeSelector: {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with .Values.tolerations }}
+tolerations: {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: central-env
+  labels: {{- include "fc.labels" . | nindent 4 }}
+data:
+  {{- range $k, $v := .Values.env }}
+  {{ $k }}: {{ $v | quote }}
+  {{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: whitelist-service
+  labels: {{- include "fc.labels" . | nindent 4 }}
+---
+# Headless (the DATABASE_URL host is "postgres"); also keeps the operator from picking it.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels: {{- include "fc.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  selector: {app: postgres, app.kubernetes.io/instance: {{ .Release.Name }}}
+  ports:
+    - {name: postgres, port: 5432, targetPort: 5432}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: whitelist-service
+  labels: {{- include "fc.labels" . | nindent 4 }}
+spec:
+  selector: {app: whitelist-service, app.kubernetes.io/instance: {{ .Release.Name }}}
+  ports:
+    - {name: http, port: 8000, targetPort: 8000}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: token-vending-service
+  labels: {{- include "fc.labels" . | nindent 4 }}
+spec:
+  selector: {app: token-vending-service, app.kubernetes.io/instance: {{ .Release.Name }}}
+  ports:
+    - {name: http, port: 8001, targetPort: 8001}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  labels: {{- include "fc.labels" . | nindent 4 }}
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels: {app: postgres, app.kubernetes.io/instance: {{ .Release.Name }}}
+  template:
+    metadata:
+      labels:
+        {{- include "fc.labels" . | nindent 8 }}
+        app: postgres
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {fsGroup: 999}
+      {{- include "fc.pull" . | nindent 6 }}
+      {{- include "fc.placement" . | nindent 6 }}
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          env:
+            - {name: POSTGRES_DB, valueFrom: {configMapKeyRef: {name: central-env, key: POSTGRES_DB}}}
+            - {name: POSTGRES_USER, valueFrom: {configMapKeyRef: {name: central-env, key: POSTGRES_USER}}}
+            - {name: POSTGRES_PASSWORD, valueFrom: {secretKeyRef: {name: db-credentials, key: POSTGRES_PASSWORD}}}
+            - {name: POSTGRES_HOST_AUTH_METHOD, value: scram-sha-256}
+            - {name: POSTGRES_INITDB_ARGS, value: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"}
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+          ports:
+            - {name: postgres, containerPort: 5432}
+          readinessProbe:
+            exec: {command: [sh, -c, 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec: {command: [sh, -c, 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 4
+          resources: {{- toYaml .Values.postgres.resources | nindent 12 }}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: {{ .Values.postgres.storageClass | quote }}
+        resources:
+          requests:
+            storage: {{ .Values.postgres.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whitelist-service
+  labels: {{- include "fc.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: whitelist-service, app.kubernetes.io/instance: {{ .Release.Name }}}
+  template:
+    metadata:
+      labels:
+        {{- include "fc.labels" . | nindent 8 }}
+        app: whitelist-service
+      annotations:
+        checksum/env: {{ toJson .Values.env | sha256sum }}
+    spec:
+      serviceAccountName: whitelist-service
+      automountServiceAccountToken: true
+      securityContext: {fsGroup: 1001, runAsGroup: 1001, runAsNonRoot: true, runAsUser: 1001, seccompProfile: {type: RuntimeDefault}}
+      {{- include "fc.pull" . | nindent 6 }}
+      {{- include "fc.placement" . | nindent 6 }}
+      containers:
+        - name: whitelist-service
+          image: {{ .Values.whitelist.image }}
+          env:
+            - {name: POSTGRES_PASSWORD, valueFrom: {secretKeyRef: {name: db-credentials, key: POSTGRES_PASSWORD}}}
+            - {name: DATABASE_URL, value: "postgresql+asyncpg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"}
+            - {name: PORT, value: "8000"}
+          envFrom:
+            - configMapRef: {name: central-env}
+            - secretRef: {name: admin-session}
+            - secretRef: {name: internal-api-key}
+          ports:
+            - {name: http, containerPort: 8000}
+          readinessProbe:
+            httpGet: {path: /healthz, port: 8000}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8000}
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 4
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          resources: {{- toYaml .Values.whitelist.resources | nindent 12 }}
+          volumeMounts:
+            - {name: whitelist-data, mountPath: /var/lib/whitelist}
+      volumes:
+        - name: whitelist-data
+          emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: token-vending-service
+  labels: {{- include "fc.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: token-vending-service, app.kubernetes.io/instance: {{ .Release.Name }}}
+  template:
+    metadata:
+      labels:
+        {{- include "fc.labels" . | nindent 8 }}
+        app: token-vending-service
+      annotations:
+        checksum/env: {{ toJson .Values.env | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {fsGroup: 1001, runAsGroup: 1001, runAsNonRoot: true, runAsUser: 1001, seccompProfile: {type: RuntimeDefault}}
+      {{- include "fc.pull" . | nindent 6 }}
+      {{- include "fc.placement" . | nindent 6 }}
+      containers:
+        - name: token-vending-service
+          image: {{ .Values.tokenVending.image }}
+          env:
+            - {name: PORT, value: "8001"}
+          envFrom:
+            - configMapRef: {name: central-env}
+            - secretRef: {name: internal-api-key}
+          ports:
+            - {name: http, containerPort: 8001}
+          readinessProbe:
+            httpGet: {path: /healthz, port: 8001}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket: {port: 8001}
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 4
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          resources: {{- toYaml .Values.tokenVending.resources | nindent 12 }}
+          volumeMounts:
+            - {name: fcm-master-sa, mountPath: /etc/fcm/master-sa, readOnly: true}
+      volumes:
+        - name: fcm-master-sa
+          secret: {secretName: fcm-master-sa, defaultMode: 0400}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-policy
+  labels: {{- include "fc.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {app: postgres, app.kubernetes.io/instance: {{ .Release.Name }}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app: whitelist-service}}
+        - podSelector: {matchLabels: {app: token-vending-service}}
+      ports:
+        - {protocol: TCP, port: 5432}
+{{- range $svc := list (dict "name" "whitelist-service" "port" 8000) (dict "name" "token-vending-service" "port" 8001) }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $svc.name }}-from-sidecars
+  labels: {{- include "fc.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {app: {{ $svc.name }}, app.kubernetes.io/instance: {{ $.Release.Name }}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- range $.Values.sidecarPodLabels }}
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels: {{- toYaml . | nindent 14 }}
+        {{- end }}
+        - podSelector: {}
+      ports:
+        - {protocol: TCP, port: {{ $svc.port }}}
+{{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: whitelist-service-to-apiserver
+  labels: {{- include "fc.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {app: whitelist-service, app.kubernetes.io/instance: {{ .Release.Name }}}
+  policyTypes: [Egress]
+  egress:
+    {{- range .Values.apiServer }}
+    - to:
+        - ipBlock: {cidr: {{ .cidr }}}
+      ports:
+        - {protocol: TCP, port: {{ .port }}}
+    {{- end }}

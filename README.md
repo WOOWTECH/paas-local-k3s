@@ -166,6 +166,20 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
   - 帶過去的設定：pi 預設 openai-codex／OpenRouter 預設 moonshotai/kimi-k2.6、git tokenUsername、zh-tw、Asia/Taipei（舊的 API key／git token 本來就是空的）。
   - PaaS 網址 https://paas-cs-26cf61b0-42e71b84.woowtech.io（密碼在 `~/woow_tech_credential/paas-lab-code-server-codex-credentials.json`）；繁中登入頁、登入後進 /workspace。
   - 資料 142.9MB／2,177 項（連內容 sha256）兩邊一致；停機 23:27–23:32。舊的：ns `paas-test-code-server` 縮到 0、兩顆 PVC 留著。cluster5 留了 `….fresh-20261116`、`….partial-2328` 待清。
+- **11-17 刪除（使用者：「都可以刪」）**：tenant-test（2 個卡在刪除的 pod 強制移除＋6 筆孤兒 headscale CR 清 finalizer）、mailcow 隧道（只刪隧道與 token；VM 與 68GB 磁碟留著）、
+  兩套 Portainer（helm uninstall＋兩條 cluster-admin 綁定）、apollo 與 woowtech 兩套 Odoo（刪前備份到 `~/backups/local-k3s-cleanup-20261117/`，每份比過 sha，說明在該資料夾 README.txt）。
+- **11-17 Odoo App 推播測試環境搬進 PaaS（使用者：「都去重新用 paas 來架設實測」→ 選「先補推播功能再整組搬」）**：
+  - PaaS 原本做不到推播（Odoo 範本掛不了 sidecar、租戶映像沒有 woow_fcm_push、推播中心要的 TokenReview 叢集權限 operator 建不了）⇒ 新增兩個本機專用範本：
+    `charts/odoo-push-test`（官方 odoo:18.0＋addons PVC＋woow／apporo 推播 sidecar＋可選既有 tunnel）、`charts/fcm-central`（whitelist＋token-vending＋postgres），
+    推在 oci://ghcr.io/woowtech/charts（私有）；overlay 18.0.1.0.18 `_lab_ensure_push_templates` 建範本（藏起來）＋0 元內部方案＋訂閱商品。
+  - 服務：36 fcm-central（工作區「推播測試：推播中心」，ns paas-ws-lab-a7bd1c50；4 個 Secret 從舊 ns 複製、ClusterRoleBinding `paas-ws-lab-a7bd1c50-fcm-auth-delegator` 在 chart 外手動建）、
+    37 demo222（paas-ws-lab-dd906faf）、38 demo111（paas-ws-lab-060d7a05）、39 apporo-push-test（paas-ws-lab-f09f9c21）。一台 Odoo 一個工作區（推播中心以 namespace 對應租戶），全部放筆電（跟以前一樣）。
+  - 資料：資料庫 pg_dump／每段比 sha／pg_restore；附件、模組、pip 套件、apporo 推播狀態在同一台節點直接複製，內容 sha 清單兩邊一致。推播中心的 namespace 對應表加了新 ns → 原本的 tenant（box 沿用）。
+  - 網址照舊：各自的 Cloudflare tunnel 連接器搬進新 ns（token 複製），tunnel 的 origin 用 `tools/migrate/tunnel_origin.py`（本機 PaaS 的 CF token）改指新服務。
+  - 實測：三個網址 health／登入頁 200；demo111、demo222 三組帳號都登得進去、App 帳號 5 個頁面 200；demo222 admin API key（XML-RPC）可用（demo111 的 key 搬之前就已刪掉）；
+    四個 sidecar 都取得 Google bearer（1024）；真的發推播：FCM 收下 7 支（demo222 3/5，另 2 支 App 已解除安裝、模組照常停用；demo111 2/2；apporo-push-test 2/2）。
+  - 舊的：demo111／demo222／apporo-push-test／woow-fcm-central 全部縮到 0、PVC 留著。退回＝舊的 scale 回 1＋tunnel_origin.py 改回舊 origin。
+    沒搬：demo111 的兩個 mail_acceptance_* 資料庫（郵件測試留下的，還在舊 PVC）。
 - 這次查到的叢集狀況（詳見 `tools/migrate/README.md`）：TUF 現在走 WiFi 192.168.2.85、k3s 登記的還是 .191（＝TUF pod 網路壞的原因）；cluster3／6／7／8 的 InternalIP 是舊的（實際位址＝flannel public-ip）；cluster3 unreachable；筆電 swap 用光時 k3s 會自己重啟。
 
 ## 已知問題與 lab 專屬調整（2026-11-15 實測）
@@ -230,3 +244,4 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - 2026-11-16 overlay 18.0.1.0.16：裝 woowtech web auth＋轉接模組 woow_paas_lab_access（/woow 限群組「woowtech Cloud 使用者」、課程限登入）。
 - 2026-11-16 服務中心 18.0.1.1.0（上游 PR #2，17:39 使用者合併 → main 5ff4ef2）：內部負責人改指使用者、拿掉 hr；本機解除 hr＋7 個 HR 模組（備份 daily/2026-11-16T09:15:15Z）；更新腳本改成 -u 全部 vendored 模組。
 - 2026-11-16 19:18 套上服務中心表單小修（bec8c8e＝main 5ff4ef2；RESTART=0，沒中斷）；更新腳本改成 INSTALL_EXTRAS=1 才 -i（已安裝模組 -i 會用 init 模式把 noupdate 設定蓋回初始值）。
+- 2026-11-17 刪 tenant-test／mailcow 隧道／Portainer×2／apollo／woowtech（後兩者先備份）；Odoo App 推播測試環境（3 台 Odoo＋推播中心）改由 PaaS 部署，網址不變、推播實測 7 支收下（overlay 18.0.1.0.18、charts/odoo-push-test、charts/fcm-central）。

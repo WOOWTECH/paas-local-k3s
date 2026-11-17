@@ -1,0 +1,62 @@
+# fcm-central — lab only. Same images/config as the hand-built woow-fcm-central namespace
+# (pinned to the digests running on 2026-11-17).
+#
+# Created OUTSIDE the chart (the PaaS operator cannot do these):
+#  - Secrets fcm-master-sa (fcm_master_sa.json), db-credentials (POSTGRES_PASSWORD),
+#    admin-session (ADMIN_SESSION_SECRET), internal-api-key (INTERNAL_API_KEY)
+#  - ClusterRoleBinding <namespace>-fcm-auth-delegator: system:auth-delegator →
+#    ServiceAccount whitelist-service (TokenReview)
+
+global:
+  imagePullSecrets: []
+imagePullSecrets:
+  - name: paas-registry
+nodeSelector: {}
+tolerations: []
+
+whitelist:
+  image: ghcr.io/woowtech/whitelist-service@sha256:0ca2e1a28eb250215bd3f519ab4382b338b20f79534cc89e0341283911ed7a1e
+  resources:
+    requests: {cpu: 50m, memory: 128Mi, ephemeral-storage: 32Mi}
+    limits: {cpu: 500m, memory: 512Mi, ephemeral-storage: 256Mi}
+tokenVending:
+  image: ghcr.io/woowtech/token-vending-service@sha256:5ea701525f7104cbc72fe0ce73e6cd652bc6baabcfb540b1dcc6179c6b616b00
+  resources:
+    requests: {cpu: 50m, memory: 128Mi, ephemeral-storage: 32Mi}
+    limits: {cpu: 500m, memory: 512Mi, ephemeral-storage: 256Mi}
+postgres:
+  image: docker.io/library/postgres@sha256:727876d274666da0b92a445390ba093c84b8e9f8343e1c53cd4e9a7ab2d85310
+  size: 5Gi
+  storageClass: local-path
+  resources:
+    requests: {cpu: 100m, memory: 256Mi, ephemeral-storage: 32Mi}
+    limits: {cpu: "1", memory: 1Gi, ephemeral-storage: 512Mi}
+
+env:
+  ADMIN_SESSION_COOKIE_SECURE: "true"
+  ADMIN_SESSION_TTL_S: "28800"
+  AUDIT_PENDING_PATH: /var/lib/whitelist/audit-pending.jsonl
+  CSRF_COOKIE_SECURE: "true"
+  DB_POOL_MAX: "100"
+  DB_POOL_MIN: "10"
+  DEPLOYMENT_TOPOLOGY: in-cluster
+  LOG_LEVEL: INFO
+  MASTER_SA_PATH: /etc/fcm/master-sa/fcm_master_sa.json
+  POSTGRES_DB: fcm_central
+  POSTGRES_USER: fcm_central
+  TLS_TERMINATOR: ""
+  TRUSTED_PROXY_CIDRS: 10.42.0.0/16
+  TVS_PORT: "8001"
+  WHITELIST_SERVICE_PORT: "8000"
+  WHITELIST_SERVICE_URL: http://whitelist-service:8000
+
+# whitelist-service calls the Kubernetes API (TokenReview). The PaaS baseline egress blocks private
+# addresses, so the API server (Service IP and its endpoint) is allowed explicitly.
+apiServer:
+  - {cidr: 10.43.0.1/32, port: 443}
+  - {cidr: 192.168.2.10/32, port: 6443}
+
+# Pods (any namespace) allowed to call whitelist 8000 / token vending 8001.
+sidecarPodLabels:
+  - {woow.paas/fcm-sidecar: "true"}
+  - {app.kubernetes.io/component: fcm-sidecar}

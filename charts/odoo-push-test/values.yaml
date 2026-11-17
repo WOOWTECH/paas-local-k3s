@@ -1,0 +1,102 @@
+# odoo-push-test — lab only. Same runtime as the hand-built demo111/demo222/apporo-push-test
+# (official odoo:18.0 + addons PVC + FCM sidecars), packaged so the PaaS operator installs it.
+# Images are pinned to the digests those deployments ran on 2026-11-17.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# The platform may inject global.imagePullSecrets (strings or {name:} objects); both forms are merged.
+global:
+  imagePullSecrets: []
+imagePullSecrets:
+  - name: paas-registry
+
+nodeSelector: {}
+tolerations: []
+
+busybox:
+  image: docker.io/library/busybox@sha256:851281100cc5f93d8a8f8e1a8976a57ec40a9bc9edd66ad3a621e4aa63326915
+
+odoo:
+  image: docker.io/library/odoo@sha256:a419f4e386bbc4826b0850907e5831c94d2a963a0f067fe53205cea365678e01
+  # Database name (also the db_filter). Keep the old name when migrating so the URLs and the
+  # woow_fcm_push tenant parameters stay meaningful.
+  dbName: odoo
+  dbUser: odoo
+  workers: 2
+  maxCronThreads: 1
+  limitMemoryHard: 2684354560
+  limitMemorySoft: 2147483648
+  limitTimeCpu: 600
+  limitTimeReal: 1200
+  listDb: false
+  # Fresh install only: create the database with base, then install these modules when their
+  # folders exist under /mnt/extra-addons. Migrations set initDb=false and restore a dump instead.
+  initDb: true
+  installModules:
+    - woow_fcm_push
+  # ir.config_parameter woow_fcm_push.firebase_project_id (set by init when non-empty)
+  firebaseProjectId: ""
+  # pip requirements installed into /var/lib/odoo/.local on every start (missing files are skipped)
+  pipRequirements:
+    - /mnt/extra-addons/woow_fcm_push/requirements.txt
+  resources:
+    requests: {cpu: 250m, memory: 512Mi, ephemeral-storage: 256Mi}
+    limits: {cpu: "2", memory: 2Gi, ephemeral-storage: 2Gi}
+
+nginx:
+  image: docker.io/library/nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+  resources:
+    requests: {cpu: 20m, memory: 32Mi, ephemeral-storage: 64Mi}
+    limits: {cpu: 500m, memory: 256Mi, ephemeral-storage: 512Mi}
+
+postgres:
+  image: docker.io/library/postgres@sha256:23e88eb049fd5d54894d70100df61d38a49ed97909263f79d4ff4c30a5d5fca2
+  resources:
+    requests: {cpu: 100m, memory: 256Mi, ephemeral-storage: 64Mi}
+    limits: {cpu: "1", memory: 1Gi, ephemeral-storage: 1Gi}
+  persistence:
+    size: 5Gi
+    storageClass: local-path
+
+persistence:
+  storageClass: local-path
+  data:
+    size: 5Gi
+  addons:
+    size: 2Gi
+
+fcm:
+  # woow brand: in-cluster fcm-central (TokenReview of a projected SA token, audience "central",
+  # ServiceAccount must be named exactly "fcm-sidecar"; one tenant per namespace).
+  woow:
+    enabled: false
+    image: ghcr.io/woowtech/fcm-sidecar@sha256:1ec9157cc6ad42bb278a6886e648e3e95d4b1f682100b19e3259cb6935e7cca2
+    centralNamespace: ""
+    tokenAudience: central
+  # apporo brand: Apporo's Cloud Run central, one-time enroll token; the enrolled box lives in the
+  # state PVC, so the token Secret is only needed for the very first enrollment.
+  apporo:
+    enabled: false
+    image: ghcr.io/woowtech/fcm-sidecar@sha256:36c010896464e14b24c283e07ab3b6480a571144e20e15690c044f7a85d05148
+    enrollEndpoint: https://apporo-odoo-whitelist-q3t535qtbq-uw.a.run.app/v1/enroll
+    centralEndpoint: https://apporo-odoo-tvs-q3t535qtbq-uw.a.run.app/v1/issue-fcm-token
+    enrollSecretName: fcm-sidecar-apporo-enroll
+    stateSize: 64Mi
+  resources:
+    requests: {cpu: 20m, memory: 32Mi, ephemeral-storage: 16Mi}
+    limits: {cpu: 200m, memory: 128Mi, ephemeral-storage: 128Mi}
+
+# Optional connector for an existing Cloudflare tunnel (keeps an old public hostname working).
+# The Secret (key TUNNEL_TOKEN) is created outside the chart; the tunnel's public-hostname origin
+# must point at this release's Service.
+tunnel:
+  enabled: false
+  image: docker.io/cloudflare/cloudflared@sha256:faa8e0a1475f137c910be6025f43c8e4092fdd35461b31e19fd1390657a1ff39
+  secretName: ""
+  resources:
+    requests: {cpu: 10m, memory: 32Mi, ephemeral-storage: 16Mi}
+    limits: {cpu: 200m, memory: 128Mi, ephemeral-storage: 128Mi}
+
+# Extra Service names that select the web pod (for tunnels whose origin is a short Service name).
+serviceAliases: []

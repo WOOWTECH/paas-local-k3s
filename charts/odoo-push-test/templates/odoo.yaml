@@ -1,0 +1,279 @@
+{{- $fn := include "opt.fullname" . -}}
+{{- $woow := .Values.fcm.woow -}}
+{{- $apporo := .Values.fcm.apporo -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $fn }}-data
+  labels:
+    {{- include "opt.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.data.size }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $fn }}-addons
+  labels:
+    {{- include "opt.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.addons.size }}
+{{- if $apporo.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $fn }}-fcm-apporo-state
+  labels:
+    {{- include "opt.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  resources:
+    requests:
+      storage: {{ $apporo.stateSize }}
+{{- end }}
+{{- if $woow.enabled }}
+---
+# The woow central only accepts tokens of a ServiceAccount named exactly "fcm-sidecar".
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fcm-sidecar
+  labels:
+    {{- include "opt.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fn }}
+  labels:
+    {{- include "opt.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: web
+  ports:
+    - {name: http, port: 8080, targetPort: 8080}
+{{- range .Values.serviceAliases }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ . }}
+  labels:
+    {{- include "opt.labels" $ | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/component: web
+  ports:
+    - {name: http, port: 8080, targetPort: 8080}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fn }}
+  labels:
+    {{- include "opt.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: web
+  template:
+    metadata:
+      labels:
+        {{- include "opt.labels" . | nindent 8 }}
+        app.kubernetes.io/component: web
+        {{- if or $woow.enabled $apporo.enabled }}
+        # the central's NetworkPolicies admit pods carrying this label
+        woow.paas/fcm-sidecar: "true"
+        {{- end }}
+      annotations:
+        checksum/scripts: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      {{- if $woow.enabled }}
+      serviceAccountName: fcm-sidecar
+      {{- end }}
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 101
+        supplementalGroups: [10002]
+      {{- include "opt.pullSecrets" . | nindent 6 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: fix-permissions
+          image: {{ .Values.busybox.image }}
+          command: [sh, -c, "chown -R 100:101 /var/lib/odoo /mnt/extra-addons"]
+          securityContext: {runAsUser: 0}
+          resources: &tiny
+            requests: {cpu: 10m, memory: 16Mi, ephemeral-storage: 8Mi}
+            limits: {cpu: 200m, memory: 64Mi, ephemeral-storage: 64Mi}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/odoo}
+            - {name: addons, mountPath: /mnt/extra-addons}
+        - name: wait-for-postgres
+          image: {{ .Values.busybox.image }}
+          command: [sh, -c, "until nc -z {{ include "opt.pgHost" . }} 5432; do echo waiting for postgres; sleep 2; done"]
+          resources: *tiny
+        - name: pip-deps
+          image: {{ .Values.odoo.image }}
+          command: [sh, /scripts/pip-deps.sh]
+          securityContext: {runAsUser: 0}
+          resources:
+            requests: {cpu: 50m, memory: 128Mi, ephemeral-storage: 64Mi}
+            limits: {cpu: "1", memory: 512Mi, ephemeral-storage: 1Gi}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/odoo}
+            - {name: addons, mountPath: /mnt/extra-addons}
+            - {name: scripts, mountPath: /scripts}
+        - name: init-db
+          image: {{ .Values.odoo.image }}
+          command: [sh, /scripts/init-db.sh]
+          env: &dbenv
+            - {name: HOST, value: {{ include "opt.pgHost" . | quote }}}
+            - {name: PORT, value: "5432"}
+            - {name: DB_NAME, valueFrom: {secretKeyRef: {name: {{ include "opt.secretName" . }}, key: POSTGRES_DB}}}
+            - {name: USER, valueFrom: {secretKeyRef: {name: {{ include "opt.secretName" . }}, key: POSTGRES_USER}}}
+            - {name: PASSWORD, valueFrom: {secretKeyRef: {name: {{ include "opt.secretName" . }}, key: POSTGRES_PASSWORD}}}
+          resources: {{- toYaml .Values.odoo.resources | nindent 12 }}
+          volumeMounts: &odoomounts
+            - {name: data, mountPath: /var/lib/odoo}
+            - {name: addons, mountPath: /mnt/extra-addons}
+            - {name: conf, mountPath: /etc/odoo/odoo.conf, subPath: odoo.conf}
+            - {name: scripts, mountPath: /scripts}
+            {{- if $woow.enabled }}
+            - {name: fcm-run, mountPath: /run/fcm-sidecar}
+            {{- end }}
+            {{- if $apporo.enabled }}
+            - {name: fcm-run-apporo, mountPath: /run/fcm-sidecar-apporo}
+            {{- end }}
+      containers:
+        - name: odoo
+          image: {{ .Values.odoo.image }}
+          env: *dbenv
+          ports:
+            - {name: odoo, containerPort: 8069}
+            - {name: websocket, containerPort: 8072}
+          startupProbe:
+            httpGet: {path: /web/health, port: 8069}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet: {path: /web/health, port: 8069}
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: {path: /web/health, port: 8069}
+            periodSeconds: 30
+            timeoutSeconds: 10
+          resources: {{- toYaml .Values.odoo.resources | nindent 12 }}
+          volumeMounts: *odoomounts
+        - name: nginx
+          image: {{ .Values.nginx.image }}
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            tcpSocket: {port: 8080}
+            periodSeconds: 10
+          resources: {{- toYaml .Values.nginx.resources | nindent 12 }}
+          volumeMounts:
+            - {name: scripts, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf}
+            - {name: nginx-cache, mountPath: /var/cache/nginx}
+        {{- if $woow.enabled }}
+        - name: fcm-sidecar
+          image: {{ $woow.image }}
+          env:
+            - {name: FCM_SIDECAR_ENROLL_ENDPOINT, value: "http://whitelist-service.{{ required "fcm.woow.centralNamespace is required" $woow.centralNamespace }}.svc.cluster.local:8000/v1/enroll"}
+            - {name: FCM_SIDECAR_CENTRAL_ENDPOINT, value: "http://token-vending-service.{{ $woow.centralNamespace }}.svc.cluster.local:8001/v1/issue-fcm-token"}
+            - {name: FCM_SIDECAR_SA_TOKEN_PATH, value: /var/run/secrets/tokens/enroll-token}
+            - {name: FCM_SIDECAR_STATE_DIR, value: /var/lib/fcm-sidecar}
+            - {name: FCM_SIDECAR_RUNTIME_DIR, value: /run/fcm-sidecar}
+          securityContext: &sidecarsc
+            runAsUser: 10001
+            runAsGroup: 10002
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
+          resources: {{- toYaml .Values.fcm.resources | nindent 12 }}
+          volumeMounts:
+            - {name: fcm-state, mountPath: /var/lib/fcm-sidecar}
+            - {name: fcm-run, mountPath: /run/fcm-sidecar}
+            - {name: sa-token, mountPath: /var/run/secrets/tokens, readOnly: true}
+        {{- end }}
+        {{- if $apporo.enabled }}
+        - name: fcm-sidecar-apporo
+          image: {{ $apporo.image }}
+          env:
+            - {name: FCM_SIDECAR_APP_BRAND, value: apporo}
+            - {name: FCM_SIDECAR_STATE_DIR, value: /var/lib/fcm-sidecar-apporo}
+            - {name: FCM_SIDECAR_RUNTIME_DIR, value: /run/fcm-sidecar-apporo}
+            - {name: FCM_SIDECAR_CENTRAL_ENDPOINT, value: {{ $apporo.centralEndpoint | quote }}}
+            - {name: FCM_SIDECAR_ENROLL_ENDPOINT, value: {{ $apporo.enrollEndpoint | quote }}}
+            - {name: FCM_SIDECAR_ENROLL_MODE, value: enroll-token}
+            - {name: FCM_SIDECAR_ENROLL_TOKEN_FILE, value: /var/run/secrets/apporo-enroll/enroll-token}
+          securityContext:
+            runAsUser: 10001
+            runAsGroup: 10002
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
+          resources: {{- toYaml .Values.fcm.resources | nindent 12 }}
+          volumeMounts:
+            - {name: fcm-state-apporo, mountPath: /var/lib/fcm-sidecar-apporo}
+            - {name: fcm-run-apporo, mountPath: /run/fcm-sidecar-apporo}
+            - {name: apporo-enroll, mountPath: /var/run/secrets/apporo-enroll, readOnly: true}
+        {{- end }}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: {{ $fn }}-data}
+        - name: addons
+          persistentVolumeClaim: {claimName: {{ $fn }}-addons}
+        - name: conf
+          secret: {secretName: {{ include "opt.secretName" . }}, items: [{key: odoo.conf, path: odoo.conf}]}
+        - name: scripts
+          configMap: {name: {{ $fn }}-scripts}
+        - name: nginx-cache
+          emptyDir: {sizeLimit: 256Mi}
+        {{- if $woow.enabled }}
+        - name: fcm-state
+          emptyDir: {}
+        - name: fcm-run
+          emptyDir: {}
+        - name: sa-token
+          projected:
+            sources:
+              - serviceAccountToken: {audience: {{ $woow.tokenAudience }}, expirationSeconds: 3600, path: enroll-token}
+        {{- end }}
+        {{- if $apporo.enabled }}
+        - name: fcm-state-apporo
+          persistentVolumeClaim: {claimName: {{ $fn }}-fcm-apporo-state}
+        - name: fcm-run-apporo
+          emptyDir: {}
+        - name: apporo-enroll
+          secret: {secretName: {{ $apporo.enrollSecretName }}, optional: true, defaultMode: 0440}
+        {{- end }}
