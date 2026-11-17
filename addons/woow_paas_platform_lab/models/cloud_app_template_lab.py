@@ -3,11 +3,13 @@
 不改上游程式，只在資料層後製：data/lab_overrides.xml 的 <function> 每次 install／-u 都呼叫
 _lab_apply_registry_overrides()，所以上游 seed（noupdate=0）洗回來之後仍會再套一次。
 """
+import base64
 import json
 import logging
 import re
 
 from odoo import api, models
+from odoo.tools import file_open
 
 _logger = logging.getLogger(__name__)
 
@@ -30,7 +32,9 @@ LAB_VISIBLE_SLUGS = ("postgresql", "redis", "n8n", "odoo", "litellm", "emqx",
                      # 正式站也隱藏的 6 個（ha-paas、ha-full-apporo、mcp-k8s、mcp-odoo-manage、mcp-opendesign、mcp-vk）維持隱藏。
                      # haos 已移除（見下方 LAB_REMOVED_SLUGS）。
                      "code-server", "ha-full", "headscale", "nextcloud", "tailscale",
-                     "mcp-emqx", "mcp-headscale", "mcp-hermes", "mcp-litellm", "mcp-n8n", "mcp-nextcloud", "mcp-odoo")
+                     "mcp-emqx", "mcp-headscale", "mcp-hermes", "mcp-litellm", "mcp-n8n", "mcp-nextcloud", "mcp-odoo",
+                     # 本機專用（2026-11-17，使用者：「cf web gui PaaS 版，工作區裡的服務都能透過它開外網」）
+                     "cf-tunnel-webgui")
 
 # 本機移除的範本：停用（is_active=False）＋隱藏，平台不列、API 也開不出來。範本是平台內建目錄的一筆（上游 seed
 # noupdate=0），刪掉的話下次 -u woow_paas_platform 會長回來，所以用停用代替刪除。
@@ -224,7 +228,45 @@ LAB_PUSH_TEMPLATES = (
      "port": 8000, "ingress": False, "category": "devops", "plan": "FCM 推播中心（內部）",
      "description": "woow 品牌的 FCM 推播中心（whitelist-service＋token-vending-service＋postgres），"
                     "只在叢集內提供服務、沒有公開網址；Google 推播金鑰與 TokenReview 權限要另外建。"},
+    # 2026-11-17 使用者：「設計建立 cf web gui PaaS 版本，功能要跟 HA addon／Podman 版一模一樣，部署在本地 k3s PaaS，
+    # 在工作區中開啟部署，同工作區的服務都能透過它開外網（例如五套 pi agent 一次開通）」→ 開通走平台 Security Access。
+    # 程式與 chart：GitHub WOOWTECH/Woow_k3s_cf_tunnel_webgui（公開）；chart 推 oci://ghcr.io/woowtech/charts（私有）。
+    # 在 LAB_VISIBLE_SLUGS ⇒ 市集看得到。登入＝平台管理員密碼（has_admin_gui＋helm_secret，同 pi-agent）。
+    {"slug": "cf-tunnel-webgui", "name": "Cloudflare Tunnel WebGUI", "chart": "cf-tunnel-webgui", "version": "0.1.1",
+     "port": 8080, "ingress": True, "category": "devops", "plan": "Cloudflare Tunnel WebGUI（內部）",
+     "admin_gui": True,
+     "short": "把同工作區的服務一次開到外網：PaaS 連結（Security Access）、Token、或你自己的 Cloudflare",
+     "tags": ["cloudflare", "tunnel", "security-access", "webgui"],
+     "docs": "https://github.com/WOOWTECH/Woow_k3s_cf_tunnel_webgui#readme",
+     "icon": "static/description/cf-tunnel-webgui.png",
+     "values": {
+         # 映像由 GitHub Actions 建（release.yml，tag v1.3.0，amd64＋arm64，GHCR 公開 package）
+         "image": {"repository": "ghcr.io/woowtech/cf-tunnel-webgui",
+                   "tag": "1.3.1@sha256:5abd92d634bfa062c26126564c43fb63dd1fbd6fdc0cb6f9ccb0603729ef4a1c"},
+         "paas": {"apiBase": "https://paas-lab.woowtech.io", "clientId": "woow-cf-tunnel-webgui",
+                  "routesWrite": True, "routeDomain": "woowtech.io"},
+     },
+     "description": "Cloudflare Tunnel 網頁管理介面（PaaS 版），與 Podman 版、Home Assistant 外掛版同樣的五個頁面與三種連結方式。\n"
+                    "• PaaS 連結：用平台帳號登入，選這個工作區的 Security Access，勾選工作區裡的服務一次開通公開網址"
+                    "（<名稱>.woowtech.io，不需要 Cloudflare 帳號）。\n"
+                    "• Token 連結：貼上 Cloudflare tunnel token。\n"
+                    "• 客製連結：登入你自己的 Cloudflare 帳號，自動建 tunnel、DNS 與規則。\n"
+                    "登入帳號 admin，密碼是這個服務的管理員密碼。開出去的網址是公開的，請確認服務本身有登入保護。"},
 )
+
+# Cloudflare Tunnel WebGUI 的 OAuth client（device flow）。上游只有 HA 用的兩個 client；
+# security-access:routes 是 overlay 新增的 scope（controllers/cf_webgui_api.py）。
+CF_WEBGUI_OAUTH_CLIENT = {
+    "name": "Cloudflare Tunnel WebGUI",
+    "client_id": "woow-cf-tunnel-webgui",
+    "client_type": "public",
+    "require_pkce": True,
+    "redirect_uri_match_mode": "exact",
+    "redirect_uris": "urn:ietf:wg:oauth:2.0:oob",
+    "grant_types": "urn:ietf:params:oauth:grant-type:device_code,refresh_token",
+    "scopes": "workspace:read security-access:read security-access:tunnel security-access:routes",
+    "is_active": True,
+}
 
 
 class CloudAppTemplateLab(models.Model):
@@ -332,15 +374,35 @@ class CloudAppTemplateLab(models.Model):
                 "category": spec["category"],
                 "default_port": spec["port"],
                 "ingress_enabled": spec["ingress"],
-                "has_admin_gui": False,
+                "has_admin_gui": bool(spec.get("admin_gui")),
                 "full_description": spec["description"],
             }
+            if spec.get("admin_gui"):
+                # 同 pi-agent：nginx basic auth，密碼走 config.sensitive.admin_password（平台可重設）
+                vals["admin_password_carrier"] = "helm_secret"
+            if spec.get("short"):
+                vals["description"] = spec["short"]
+            if spec.get("tags"):
+                vals["tags"] = json.dumps(spec["tags"])
+            if spec.get("docs"):
+                vals["documentation_url"] = spec["docs"]
+            if spec.get("icon"):
+                with file_open(f"woow_paas_platform_lab/{spec['icon']}", "rb") as handle:
+                    vals["icon"] = base64.b64encode(handle.read())
             tmpl = self.sudo().with_context(active_test=False).search([("slug", "=", spec["slug"])], limit=1)
             if not tmpl:
-                tmpl = self.sudo().create(dict(vals, helm_default_values="{}", is_active=True, is_hidden=True))
+                tmpl = self.sudo().create(dict(vals, helm_default_values=json.dumps(spec.get("values") or {}),
+                                               is_active=True, is_hidden=True))
                 done.append(f"{spec['slug']} created")
             else:
                 diff = {k: v for k, v in vals.items() if tmpl[k] != v}
+                if "values" in spec:
+                    try:
+                        current = json.loads(tmpl.helm_default_values or "{}")
+                    except ValueError:
+                        current = None
+                    if current != spec["values"]:
+                        diff["helm_default_values"] = json.dumps(spec["values"])
                 if diff:
                     tmpl.write(diff)
                     done.append(f"{spec['slug']} updated {sorted(diff)}")
@@ -371,6 +433,22 @@ class CloudAppTemplateLab(models.Model):
                     })
                     done.append(f"{spec['slug']} product for plan {plan.id}")
         _logger.info("woow_paas_platform_lab: push-test templates: %s", done or "already set")
+        return True
+
+    @api.model
+    def _lab_ensure_cf_webgui_oauth_client(self):
+        """Cloudflare Tunnel WebGUI 的 OAuth client（冪等；值不同就對齊）。"""
+        Client = self.env["woow_paas_platform.oauth_client"].sudo().with_context(active_test=False)
+        client = Client.search([("client_id", "=", CF_WEBGUI_OAUTH_CLIENT["client_id"])], limit=1)
+        if not client:
+            Client.create(dict(CF_WEBGUI_OAUTH_CLIENT))
+            _logger.info("woow_paas_platform_lab: OAuth client %s created", CF_WEBGUI_OAUTH_CLIENT["client_id"])
+            return True
+        diff = {k: v for k, v in CF_WEBGUI_OAUTH_CLIENT.items() if k != "client_id" and client[k] != v}
+        if diff:
+            client.write(diff)
+        _logger.info("woow_paas_platform_lab: OAuth client %s: %s", CF_WEBGUI_OAUTH_CLIENT["client_id"],
+                     sorted(diff) or "already set")
         return True
 
     @api.model
