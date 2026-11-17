@@ -1,0 +1,278 @@
+# 本機 PaaS 的「即時資源使用量」用的小 Prometheus（2026-11-17，使用者選「裝一個小的 Prometheus」）。
+#
+# 為什麼放在 cattle-monitoring-system／prometheus-operated：paas-operator 的 resource_prometheus_url 預設是
+#   http://prometheus-operated.cattle-monitoring-system.svc:9090（正式站的 Rancher Monitoring），operator chart 沒有
+#   可以改它的設定；放在同一個位址，operator 不用改。⚠ 以後要裝正式的 Rancher Monitoring，先把這整份刪掉。
+#
+# 只收 operator 查的三種數字：
+#   - container_cpu_usage_seconds_total／container_memory_working_set_bytes：cAdvisor，經 API server 轉送
+#     （/api/v1/nodes/<node>/proxy/metrics/cadvisor）。k3s 走自己的通道，所以 InternalIP 登記成舊 IP 的
+#     cluster3／6／7／8／TUF 也收得到（metrics-server 直接連 IP 才會失敗）。
+#   - kubelet_volume_stats_used_bytes：不用 kubelet 的（local-path 是 hostPath，kubelet 報的是整顆磁碟的用量），
+#     改由下面的 pvc-usage DaemonSet 每 10 分鐘 du 每個 PVC 目錄。
+#   - kubelet_volume_stats_capacity_bytes：pvc-capacity 讀 local-path PVC 的 status.capacity（＝正式站 Longhorn 卷的大小）。
+#     沒有這個數字 operator 會把磁碟標成「資料不完整」。
+# operator 認 120 秒內的樣本、CPU 用 300 秒的 rate ⇒ 每 60 秒收一次。只保留 6 小時、放 emptyDir。
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cattle-monitoring-system
+  labels: {woow.paas/lab-standin: prometheus-lite}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: prometheus-lite, namespace: cattle-monitoring-system}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: prometheus-lite}
+rules:
+  - apiGroups: [""]
+    resources: [nodes, nodes/proxy, nodes/metrics]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: prometheus-lite}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: prometheus-lite}
+subjects:
+  - {kind: ServiceAccount, name: prometheus-lite, namespace: cattle-monitoring-system}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: prometheus-lite-pods, namespace: cattle-monitoring-system}
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: prometheus-lite-pods, namespace: cattle-monitoring-system}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: prometheus-lite-pods}
+subjects:
+  - {kind: ServiceAccount, name: prometheus-lite, namespace: cattle-monitoring-system}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: prometheus-lite-config, namespace: cattle-monitoring-system}
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 60s
+      scrape_timeout: 30s
+    scrape_configs:
+      - job_name: cadvisor
+        scheme: https
+        tls_config: {ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt}
+        authorization: {credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token}
+        kubernetes_sd_configs: [{role: node}]
+        relabel_configs:
+          - {target_label: __address__, replacement: "kubernetes.default.svc:443"}
+          - {source_labels: [__meta_kubernetes_node_name], regex: "(.+)", target_label: __metrics_path__, replacement: "/api/v1/nodes/$1/proxy/metrics/cadvisor"}
+          - {source_labels: [__meta_kubernetes_node_name], target_label: node}
+        metric_relabel_configs:
+          - {source_labels: [__name__], regex: "container_cpu_usage_seconds_total|container_memory_working_set_bytes", action: keep}
+      - job_name: pvc-usage
+        honor_labels: true
+        fallback_scrape_protocol: PrometheusText0.0.4
+        kubernetes_sd_configs: [{role: pod, namespaces: {names: [cattle-monitoring-system]}}]
+        relabel_configs:
+          - {source_labels: [__meta_kubernetes_pod_label_app], regex: "pvc-usage|pvc-capacity", action: keep}
+          - {source_labels: [__meta_kubernetes_pod_ip], target_label: __address__, replacement: "$1:9100"}
+          - {source_labels: [__meta_kubernetes_pod_node_name], target_label: node}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: prometheus-lite, namespace: cattle-monitoring-system, labels: {app: prometheus-lite}}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: prometheus-lite}}
+  template:
+    metadata:
+      labels: {app: prometheus-lite}
+      annotations: {config/revision: "2"}
+    spec:
+      serviceAccountName: prometheus-lite
+      nodeSelector: {kubernetes.io/hostname: woowtechcluster4}
+      securityContext: {runAsNonRoot: true, runAsUser: 65534, runAsGroup: 65534, fsGroup: 65534, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: prometheus
+          image: docker.io/prom/prometheus@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2   # v3.15.1
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time=6h
+            - --web.listen-address=:9090
+          ports: [{name: http, containerPort: 9090}]
+          readinessProbe: {httpGet: {path: /-/ready, port: 9090}, periodSeconds: 10}
+          livenessProbe: {httpGet: {path: /-/healthy, port: 9090}, initialDelaySeconds: 30, periodSeconds: 30}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, readOnlyRootFilesystem: true}
+          resources:
+            requests: {cpu: 50m, memory: 192Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          volumeMounts:
+            - {name: config, mountPath: /etc/prometheus}
+            - {name: data, mountPath: /prometheus}
+      volumes:
+        - name: config
+          configMap: {name: prometheus-lite-config}
+        - name: data
+          emptyDir: {sizeLimit: 2Gi}
+---
+# 名稱＝operator 預設網址裡的 service（Rancher Monitoring 由 prometheus-operator 建同名 service）
+apiVersion: v1
+kind: Service
+metadata: {name: prometheus-operated, namespace: cattle-monitoring-system}
+spec:
+  selector: {app: prometheus-lite}
+  ports: [{name: http, port: 9090, targetPort: 9090}]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: pvc-usage-script, namespace: cattle-monitoring-system}
+data:
+  # local-path 目錄名＝pvc-<uid>_<namespace>_<pvc>（namespace 與 PVC 名稱都不能有底線）
+  run.sh: |
+    mkdir -p /www
+    httpd -f -p 9100 -h /www &
+    while true; do
+      for d in /storage/pvc-*_*_*; do
+        [ -d "$d" ] || continue
+        n=$(basename "$d"); rest=${n#*_}; ns=${rest%%_*}; pvc=${rest#*_}
+        kb=$(nice -n 19 du -sk "$d" 2>/dev/null | cut -f1)
+        [ -n "$kb" ] && echo "kubelet_volume_stats_used_bytes{namespace=\"$ns\",persistentvolumeclaim=\"$pvc\"} $((kb * 1024))"
+      done > /www/metrics.new
+      mv /www/metrics.new /www/metrics
+      sleep 600
+    done
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: {name: pvc-usage, namespace: cattle-monitoring-system, labels: {app: pvc-usage}}
+spec:
+  selector: {matchLabels: {app: pvc-usage}}
+  template:
+    metadata: {labels: {app: pvc-usage}}
+    spec:
+      automountServiceAccountToken: false
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  # TUF 的 pod 網路壞了（Prometheus 收不到）、cluster3 離線；PaaS 服務都不在這兩台
+                  - {key: kubernetes.io/hostname, operator: NotIn, values: [woowtech-ai-coder-asus-tuf-gaming-f15-fx507zu4-fx507zu4, woowtechcluster3]}
+      tolerations: [{operator: Exists}]
+      containers:
+        - name: du
+          image: docker.io/library/busybox@sha256:851281100cc5f93d8a8f8e1a8976a57ec40a9bc9edd66ad3a621e4aa63326915   # 1.36
+          command: [sh, /script/run.sh]
+          ports: [{name: metrics, containerPort: 9100}]
+          securityContext: {runAsUser: 0, readOnlyRootFilesystem: false, allowPrivilegeEscalation: false}
+          resources:
+            requests: {cpu: 5m, memory: 8Mi}
+            limits: {cpu: 200m, memory: 64Mi}
+          volumeMounts:
+            - {name: storage, mountPath: /storage, readOnly: true}
+            - {name: script, mountPath: /script}
+      volumes:
+        - name: storage
+          hostPath: {path: /var/lib/rancher/k3s/storage, type: DirectoryOrCreate}
+        - name: script
+          configMap: {name: pvc-usage-script}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: pvc-capacity, namespace: cattle-monitoring-system}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: pvc-capacity}
+rules:
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: pvc-capacity}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: pvc-capacity}
+subjects:
+  - {kind: ServiceAccount, name: pvc-capacity, namespace: cattle-monitoring-system}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: pvc-capacity-script, namespace: cattle-monitoring-system}
+data:
+  exporter.py: |
+    # local-path PVC 的容量（status.capacity.storage）→ kubelet_volume_stats_capacity_bytes，每 5 分鐘更新。
+    import json, re, ssl, threading, time, urllib.request
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    SA = "/var/run/secrets/kubernetes.io/serviceaccount/"
+    UNITS = {"Ki": 2**10, "Mi": 2**20, "Gi": 2**30, "Ti": 2**40, "K": 10**3, "M": 10**6, "G": 10**9, "T": 10**12, "": 1}
+    body = b""
+
+    def qty(text):
+        m = re.fullmatch(r"([0-9.]+)([A-Za-z]*)", text)
+        return int(float(m.group(1)) * UNITS[m.group(2)]) if m and m.group(2) in UNITS else None
+
+    def refresh():
+        global body
+        ctx = ssl.create_default_context(cafile=SA + "ca.crt")
+        while True:
+            try:
+                req = urllib.request.Request("https://kubernetes.default.svc/api/v1/persistentvolumeclaims",
+                                             headers={"Authorization": "Bearer " + open(SA + "token").read().strip()})
+                lines = []
+                for p in json.load(urllib.request.urlopen(req, context=ctx, timeout=20))["items"]:
+                    cap = ((p.get("status") or {}).get("capacity") or {}).get("storage")
+                    size = qty(cap) if cap else None
+                    if p["spec"].get("storageClassName") == "local-path" and size:
+                        lines.append('kubelet_volume_stats_capacity_bytes{namespace="%s",persistentvolumeclaim="%s"} %d'
+                                     % (p["metadata"]["namespace"], p["metadata"]["name"], size))
+                body = ("\n".join(lines) + "\n").encode()
+            except Exception as e:
+                print("refresh failed:", type(e).__name__, e, flush=True)
+            time.sleep(300)
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; version=0.0.4")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    threading.Thread(target=refresh, daemon=True).start()
+    HTTPServer(("", 9100), Handler).serve_forever()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: pvc-capacity, namespace: cattle-monitoring-system, labels: {app: pvc-capacity}}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: pvc-capacity}}
+  template:
+    metadata: {labels: {app: pvc-capacity}}
+    spec:
+      serviceAccountName: pvc-capacity
+      nodeSelector: {kubernetes.io/hostname: woowtechcluster4}
+      securityContext: {runAsNonRoot: true, runAsUser: 65534, runAsGroup: 65534, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: exporter
+          image: docker.io/library/python@sha256:848ba4413eb897e225159b8fc1b02094576cbae4aa73fc13142608ae2c8c0e32   # 3.12.12-alpine3.22
+          command: [python3, -u, /script/exporter.py]
+          ports: [{name: metrics, containerPort: 9100}]
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, readOnlyRootFilesystem: true}
+          resources:
+            requests: {cpu: 5m, memory: 24Mi}
+            limits: {cpu: 200m, memory: 96Mi}
+          volumeMounts:
+            - {name: script, mountPath: /script}
+      volumes:
+        - name: script
+          configMap: {name: pvc-capacity-script}

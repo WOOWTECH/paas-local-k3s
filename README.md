@@ -182,6 +182,14 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
     沒搬：demo111 的兩個 mail_acceptance_* 資料庫（郵件測試留下的，還在舊 PVC）。
 - 這次查到的叢集狀況（詳見 `tools/migrate/README.md`）：TUF 現在走 WiFi 192.168.2.85、k3s 登記的還是 .191（＝TUF pod 網路壞的原因）；cluster3／6／7／8 的 InternalIP 是舊的（實際位址＝flannel public-ip）；cluster3 unreachable；筆電 swap 用光時 k3s 會自己重啟。
 
+## 即時資源使用量（2026-11-17，`infra/lab-monitoring/prometheus-lite.yaml`）
+- 使用者問「為什麼服務是『暫時無法取得資料』」：operator 的即時用量查的是 Prometheus（預設 `prometheus-operated.cattle-monitoring-system.svc:9090`＝正式站的 Rancher Monitoring），
+  本機一直沒裝 ⇒ 每個服務都顯示拿不到。另外 metrics-server 連不到 InternalIP 是舊的節點（cluster3／6／7／8／TUF）。
+- 使用者選「裝一個小的 Prometheus」：放在 operator 預設的位址（cattle-monitoring-system／Service prometheus-operated），operator 不用改。⚠ 要裝 Rancher Monitoring 前先刪掉這份。
+  - CPU／記憶體：cAdvisor 經 API server 轉送收（舊 IP 的節點也收得到），每 60 秒、只留 6 小時、只留 operator 要的兩個指標。
+  - 磁碟用量：kubelet 對 local-path（hostPath）報的是整顆磁碟，不能用 ⇒ DaemonSet `pvc-usage` 每 10 分鐘 du 每個 PVC 目錄；容量由 `pvc-capacity` 讀 PVC 大小（沒有容量 operator 會標「資料不完整」）。
+  - 驗證：23 個執行中的服務 CPU／記憶體／磁碟全部 ok；平台 API 回 pi5 0.17 核心、1.03／3.12 GiB、磁碟 13.43／30 GiB。cluster3 離線所以沒有它的數字；TUF 上沒有 PaaS 服務、不收。
+
 ## 已知問題與 lab 專屬調整（2026-11-15 實測）
 - **TUF 節點的 pod 網路不通**：該節點上的 pod 連 CoreDNS 都逾時（叢集既有問題，需上機查 flannel／防火牆）。
   operator `config.tenantAvoidNodes` 讓租戶 pod 避開 TUF 與筆電；平台本身用 post-renderer 的 nodeAffinity 避開。
@@ -245,3 +253,4 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - 2026-11-16 服務中心 18.0.1.1.0（上游 PR #2，17:39 使用者合併 → main 5ff4ef2）：內部負責人改指使用者、拿掉 hr；本機解除 hr＋7 個 HR 模組（備份 daily/2026-11-16T09:15:15Z）；更新腳本改成 -u 全部 vendored 模組。
 - 2026-11-16 19:18 套上服務中心表單小修（bec8c8e＝main 5ff4ef2；RESTART=0，沒中斷）；更新腳本改成 INSTALL_EXTRAS=1 才 -i（已安裝模組 -i 會用 init 模式把 noupdate 設定蓋回初始值）。
 - 2026-11-17 刪 tenant-test／mailcow 隧道／Portainer×2／apollo／woowtech（後兩者先備份）；Odoo App 推播測試環境（3 台 Odoo＋推播中心）改由 PaaS 部署，網址不變、推播實測 7 支收下（overlay 18.0.1.0.18、charts/odoo-push-test、charts/fcm-central）。
+- 2026-11-17 09:10 裝小 Prometheus（cattle-monitoring-system，cAdvisor 經 API 轉送＋du／PVC 容量兩個小收集器），PaaS「即時資源使用量」23 個服務全部有數字。
