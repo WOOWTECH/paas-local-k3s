@@ -212,6 +212,18 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
   - 範本預設值在建服務時會存進服務的 helm_values。改範本不會影響既有服務，映像例外，所以要先改服務的 helm_values 再 redeploy。
   - 第一次部署時 operator 讀 lab tunnel 設定逾時一次，route 沒建、服務 error。刪掉重建即可，這是平台建議的做法。
 
+## Apporo CF Tunnel Web（2026-11-18，overlay 18.0.1.0.23）
+- 使用者：「做一份專屬連結 apporo odoo paas 的 k3s 版本」，選「獨立 Helm chart＋也上架到本機 lab PaaS」。
+- 程式在 GitHub `WOOWTECH/Apporo_k3s_cf_tunnel_webgui`（公開，1.0.0）：英文介面＋Apporo 品牌。
+  - PaaS 連結連 www.apporo.ai：client woow-ha-smart-home、網域 apporo.ai、不寫路由。
+  - 映像 `ghcr.io/woowtech/apporo-cf-tunnel-webgui`（公開）。
+  - chart `oci://ghcr.io/woowtech/charts/apporo-cf-tunnel-webgui`（私有）。
+- 範本 `apporo-cf-tunnel-webgui`（id 33，金色 A 圖示）：LAB_PUSH_TEMPLATES＋LAB_VISIBLE_SLUGS；`cloud_service_lab.py` 的 apiserver_cidrs 也涵蓋它。
+- 驗證：lab-agents 部署 lab-apporo-cftw-1。
+  - 401 保護、列出同工作區 6 個服務、bootstrap 指向 Apporo。
+  - 五頁全英文、無 console 錯誤。
+  - 連 www.apporo.ai 的實測要先取得使用者同意，因為會動到 Apporo 正式站。
+
 ## 已知問題與 lab 專屬調整（2026-11-15 實測）
 - **TUF 節點的 pod 網路不通**：該節點上的 pod 連 CoreDNS 都逾時（叢集既有問題，需上機查 flannel／防火牆）。
   operator `config.tenantAvoidNodes` 讓租戶 pod 避開 TUF 與筆電；平台本身用 post-renderer 的 nodeAffinity 避開。

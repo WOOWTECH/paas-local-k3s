@@ -34,7 +34,9 @@ LAB_VISIBLE_SLUGS = ("postgresql", "redis", "n8n", "odoo", "litellm", "emqx",
                      "code-server", "ha-full", "headscale", "nextcloud", "tailscale",
                      "mcp-emqx", "mcp-headscale", "mcp-hermes", "mcp-litellm", "mcp-n8n", "mcp-nextcloud", "mcp-odoo",
                      # 本機專用（2026-11-17，使用者：「cf web gui PaaS 版，工作區裡的服務都能透過它開外網」）
-                     "cf-tunnel-webgui")
+                     "cf-tunnel-webgui",
+                     # 2026-11-18 使用者：「做一份專屬連結 apporo odoo paas 的 k3s 版本」→ 選「也上架到本機 lab PaaS」
+                     "apporo-cf-tunnel-webgui")
 
 # 本機移除的範本：停用（is_active=False）＋隱藏，平台不列、API 也開不出來。範本是平台內建目錄的一筆（上游 seed
 # noupdate=0），刪掉的話下次 -u woow_paas_platform 會長回來，所以用停用代替刪除。
@@ -251,6 +253,27 @@ LAB_PUSH_TEMPLATES = (
                     "WebGUI 會列出這個工作區每個服務的內部位址。\n"
                     "• Token 連結：貼上 Cloudflare tunnel token。\n"
                     "• 客製連結：登入你自己的 Cloudflare 帳號，勾選工作區裡的服務，一次建好 tunnel、DNS 與規則。\n"
+                    "登入帳號 admin，密碼是這個服務的管理員密碼。開出去的網址是公開的，請確認服務本身有登入保護。"},
+    # 2026-11-18 Apporo 版（WOOWTECH/Apporo_k3s_cf_tunnel_webgui）：英文介面＋Apporo 品牌，PaaS 連結接 www.apporo.ai 的
+    # Security Access（chart 預設：client woow-ha-smart-home、不寫路由、網域 apporo.ai）。Apporo 平台沒有 k3s 服務，
+    # 所以上架在 woowtech Cloud（lab）給內部用；正式交付給客戶時用獨立 Helm chart 裝到他們的 k3s。
+    {"slug": "apporo-cf-tunnel-webgui", "name": "Apporo CF Tunnel Web", "chart": "apporo-cf-tunnel-webgui",
+     "version": "1.0.0", "port": 8080, "ingress": True, "category": "devops", "plan": "Apporo CF Tunnel Web（內部）",
+     "admin_gui": True,
+     "short": "Apporo 版：把同工作區的服務開到外網（Apporo Security Access／Token／自己的 Cloudflare），英文介面",
+     "tags": ["apporo", "cloudflare", "tunnel", "security-access"],
+     "docs": "https://github.com/WOOWTECH/Apporo_k3s_cf_tunnel_webgui#readme",
+     "icon": "static/description/apporo-cf-tunnel-webgui.png",
+     "values": {
+         # 映像由 GitHub Actions 建（WOOWTECH/Apporo_k3s_cf_tunnel_webgui release.yml，tag v1.0.0，amd64＋arm64，公開）
+         "image": {"repository": "ghcr.io/woowtech/apporo-cf-tunnel-webgui",
+                   "tag": "1.0.0@sha256:4a98105908c8347fd6a1caf5848001ce0a7cc2809d450db6e19d892309e1e08a"},
+     },
+     "description": "Apporo CF Tunnel Web（Kubernetes 版），與 Apporo 的 Podman 版、Home Assistant 外掛版同樣的五個頁面與三種連結方式，英文介面。\n"
+                    "• Apporo Link：用 Apporo（www.apporo.ai）帳號登入，連結 Security Access；網址（名稱.apporo.ai）在 Apporo 入口網站設定，"
+                    "WebGUI 會列出這個工作區每個服務的內部位址。\n"
+                    "• Token：貼上 Cloudflare tunnel token。\n"
+                    "• Setup（客製連結）：登入你自己的 Cloudflare 帳號，勾選工作區裡的服務，一次建好 tunnel、DNS 與規則。\n"
                     "登入帳號 admin，密碼是這個服務的管理員密碼。開出去的網址是公開的，請確認服務本身有登入保護。"},
 )
 
