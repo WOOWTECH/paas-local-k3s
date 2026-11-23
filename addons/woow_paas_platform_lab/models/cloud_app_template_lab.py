@@ -36,7 +36,9 @@ LAB_VISIBLE_SLUGS = ("postgresql", "redis", "n8n", "odoo", "litellm", "emqx",
                      # 本機專用（2026-11-17，使用者：「cf web gui PaaS 版，工作區裡的服務都能透過它開外網」）
                      "cf-tunnel-webgui",
                      # 2026-11-18 使用者：「做一份專屬連結 apporo odoo paas 的 k3s 版本」→ 選「也上架到本機 lab PaaS」
-                     "apporo-cf-tunnel-webgui")
+                     "apporo-cf-tunnel-webgui",
+                     # 2026-11-23 使用者：「把同樣 mausbot 上架到本地的 k3s paas」→ 平台升到正式站同版（18.0.2.0.31）後上架
+                     "woowtechbot")
 
 # 本機移除的範本：停用（is_active=False）＋隱藏，平台不列、API 也開不出來。範本是平台內建目錄的一筆（上游 seed
 # noupdate=0），刪掉的話下次 -u woow_paas_platform 會長回來，所以用停用代替刪除。
@@ -110,6 +112,14 @@ LAB_PLAN_SPECS = {
     "woow_paas_platform.plan_code_server_yearly": {"cs_ram_gb": 3.0},
     "woow_paas_platform.plan_nextcloud_monthly": {"cs_ram_gb": 3.0},
     "woow_paas_platform.plan_nextcloud_yearly": {"cs_ram_gb": 3.0},
+    # 2026-11-23 woowtechbot：正式站 4 vCPU／8 GB／20 GB；使用者選「TUF＋縮小 2/4/20」（requests 會是 0.5 CPU／2Gi）
+    "woow_paas_platform.plan_woowtechbot_monthly": {"cs_vcpu": 2, "cs_ram_gb": 4.0, "cs_storage_gb": 20},
+    "woow_paas_platform.plan_woowtechbot_yearly": {"cs_vcpu": 2, "cs_ram_gb": 4.0, "cs_storage_gb": 20},
+}
+
+# 市集卡片顯示的最低規格跟著本機方案（平台不拿它檢查方案，只在方案沒寫規格時當預設）。
+LAB_TEMPLATE_MIN_SPECS = {
+    "woowtechbot": {"min_vcpu": 2, "min_ram_gb": 4.0},
 }
 
 # chart 預設值裡指向 JCR、但範本 helm_default_values 沒覆寫的映像（2026-11-15 實查 chart 0.2.26/0.2.27、litellm 0.3.16、emqx 0.1.11）。
@@ -159,9 +169,33 @@ TEMPLATE_VALUE_FIXES = {
 # 2026-11-16 code-server：本機 k3s 的 code-server-codex 搬進 PaaS 要用到 Codex CLI，只有 11/10 映像才有；
 # chart 0.1.12 已合併進 woow-paas-charts main（Pi、Claude、Codex 共用 skills／MCP），正式站範本仍是 0.1.9／20261018.0107。
 # 映像與 chart 已複製到 GHCR（tools/images-code-server.txt、tools/mirror-charts.sh "code-server 0.1.12"）。
+# 2026-11-23 平台 18.0.2.0.14 → 18.0.2.0.31：上游 seed 換了 odoo／omnigent／9 個 mcp-* 的 chart 或映像，新版沒有複製到 GHCR，
+# 先釘回本機已複製的版本（值取自升級前的本機範本）；要跟上正式站時把映像／chart 複製過來再拿掉。woowtechbot 釘最新修正版
+# （正式站範本仍是 chart 0.1.2／20261121.0756，服務 461 已跑 0.1.3／20261123.0428）。
+#   image_tag：寫進 values.image.tag；values：其他要釘的值（deep-set）。
+_MCP_LAB_TAGS = {
+    "mcp-emqx": "443e95a942c7ef0484d963631382aab94d0e0567@sha256:78f45cbca960b4fcb2bc826244811a3fd78e7131fe7a0d680e03cb9905e4eb00",
+    "mcp-headscale": "443e95a942c7ef0484d963631382aab94d0e0567@sha256:173a9c4bb16fa4b06ba8d74ce9c10360dd812f81cd077da3a57796766684a689",
+    "mcp-hermes": "443e95a942c7ef0484d963631382aab94d0e0567@sha256:21f9d8a91133ab6f5169e4bc5b48989868da8345b992da5ca8ef18c68b2b3c60",
+    "mcp-k8s": "443e95a942c7ef0484d963631382aab94d0e0567@sha256:9da345d79632b985feb339d2cfa0c54f2d0366270c7d482ab4ca75220ddb842e",
+    "mcp-litellm": "443e95a942c7ef0484d963631382aab94d0e0567@sha256:43d824bb6ca3f7c151dc08aafcbdb18e2762968b0b0705f15d20b034433a8d26",
+    "mcp-n8n": "443e95a942c7ef0484d963631382aab94d0e0567@sha256:93d6599a2e8a644bfe6d28181a8c2449e80fe93a8c70dc9aab4c8aca97e9154c",
+    "mcp-nextcloud": "443e95a942c7ef0484d963631382aab94d0e0567@sha256:cac243527c8854744953963bfa5f21eaa967a2fa37c171aeb4791cbafffd139c",
+    "mcp-odoo": "443e95a942c7ef0484d963631382aab94d0e0567@sha256:aed35228dc8866439f3952bc7f425411ffd6b6f50a8231b09ece2d250c8ca2b2",
+    "mcp-opendesign": "443e95a942c7ef0484d963631382aab94d0e0567@sha256:51f90d8d393645c2aa8db5d4f9ce0c74501c1ad6e5e119f7f81308d5ef20e174",
+}
 TEMPLATE_VERSION_PINS = {
     "code-server": {"chart_version": "0.1.12",
                     "image_tag": "20261110.1622@sha256:0271957892a382d88c141c4a0d3a2b3b53da6cd0b56ba7239fe229608d6dcb5b"},
+    "odoo": {"chart_version": "0.2.26",
+             "values": {"image": {"tag": "20261108.0727",
+                                  "digest": "sha256:a49bfc8cc912314826a60e62d7c12b672cc19726433c6b6ac3998ef969863e1b"}}},
+    "omnigent": {"chart_version": "0.1.19",
+                 "image_tag": "20261111.0647@sha256:c6b6cab6478f06f6a36e3731cbd619d8d1bea8ece201da6e97c9dea97c38d72e",
+                 "values": {"runner": {"image": "ghcr.io/woowtech/omnigent-host:20261111.0647@sha256:701101d009847e7dfb2c607314d42a38d171c9c44732c0e2a624177e02ce23bb"}}},
+    "woowtechbot": {"chart_version": "0.1.3",
+                    "image_tag": "20261123.0428@sha256:4540b2bc890c828492ee7e976a3876476a7159f736131865255787c82c287433"},
+    **{slug: {"chart_version": "0.1.10", "image_tag": tag} for slug, tag in _MCP_LAB_TAGS.items()},
 }
 
 
@@ -211,8 +245,12 @@ def lab_transform(slug, chart_name, values):
         new_values = _apply_chart_default_fixes(new_chart, new_values)
         if slug in TEMPLATE_VALUE_FIXES:
             new_values = _deep_set(new_values, json.loads(json.dumps(TEMPLATE_VALUE_FIXES[slug])))
-    if slug in TEMPLATE_VERSION_PINS:
-        new_values = _deep_set(new_values, {"image": {"tag": TEMPLATE_VERSION_PINS[slug]["image_tag"]}})
+    pin = TEMPLATE_VERSION_PINS.get(slug)
+    if pin:
+        if "image_tag" in pin:
+            new_values = _deep_set(new_values, {"image": {"tag": pin["image_tag"]}})
+        if "values" in pin:
+            new_values = _deep_set(new_values, json.loads(json.dumps(pin["values"])))
     return new_chart, new_values
 
 
@@ -314,6 +352,9 @@ class CloudAppTemplateLab(models.Model):
                 vals["is_active"] = True
             if t.slug in LAB_REMOVED_SLUGS and t.is_active:
                 vals["is_active"] = False
+            for field, want in LAB_TEMPLATE_MIN_SPECS.get(t.slug, {}).items():
+                if t[field] != want:
+                    vals[field] = want
             if vals:
                 t.write(vals)
                 changed += 1

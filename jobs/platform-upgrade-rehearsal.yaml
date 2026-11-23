@@ -1,0 +1,59 @@
+# 平台映像升級演練（2026-11-23，woowtechbot 上架本機 PaaS 前；使用者決定：先用 DB 副本演練再正式升）。
+# 對象是副本 woow_lab_rehearsal（psql 在 PG pod 內 pg_dump | pg_restore 複製；副本已把 operator／LINE 設定改成無效值、
+# 停用全部排程），不碰 woow_lab 與 filestore（data 用 emptyDir）。指令等同 chart upgrade-gate 對新 digest 做的 -u all。
+# 跑法：python3 tools/with-lab-addon-items.py jobs/platform-upgrade-rehearsal.yaml --configmap-suffix -rehearsal | kubectl --context default apply -f -
+# 前提：addons/ 每個模組的「-rehearsal」ConfigMap 已建（tools/lab_addons.py configmap()）。用完刪 Job、ConfigMap 與副本 DB。
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: platform-upgrade-rehearsal
+  namespace: paas-system
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 3600
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: paas-odoo-platform     # PG NetworkPolicy 放行條件
+        app.kubernetes.io/component: upgrade-rehearsal     # 不會被任何 Service 選到
+    spec:
+      restartPolicy: Never
+      # 小節點記憶體已排滿；TUF 2026-11-23 網路測試通過（DNS、跨節點 Service、外網）
+      nodeSelector:
+        kubernetes.io/hostname: woowtech-ai-coder-asus-tuf-gaming-f15-fx507zu4-fx507zu4
+      securityContext:
+        fsGroup: 101
+      imagePullSecrets:
+        - name: ghcr-registry
+      containers:
+        - name: update
+          image: ghcr.io/woowtech/paas-odoo-official:20261123.0105@sha256:8d428f8391de0490dff37790570592a3017889a282c12d2fe7b39d2b74496d53
+          securityContext:
+            runAsUser: 100
+            runAsGroup: 101
+          resources:
+            requests: { cpu: 500m, memory: 1Gi }
+            limits: { cpu: "4", memory: 4Gi }
+          # k3s NetworkPolicy 對新 Pod 有幾秒的啟動空窗（2026-11-23：映像已在節點上時 0.4 秒就連 PG → Connection refused），
+          # 先等 PG 連得上再跑 -u。
+          command:
+            - /bin/sh
+            - -c
+            - |
+              for i in $(seq 1 60); do
+                python3 -c 'import socket; socket.create_connection(("paas-odoo-platform-postgresql", 5432), 3).close()' 2>/dev/null && break
+                echo "waiting for PostgreSQL ($i)"; sleep 2
+              done
+              exec odoo -c /etc/odoo/odoo.conf -d woow_lab_rehearsal -u all --stop-after-init --no-http
+          volumeMounts:
+            - { name: odoo-conf, mountPath: /etc/odoo/odoo.conf, subPath: odoo.conf }
+            - { name: data, mountPath: /var/lib/odoo }
+            - { name: lab-addon, mountPath: /opt/woow/addons/woow_paas_platform_lab, readOnly: true }
+      volumes:
+        - name: odoo-conf
+          secret: { secretName: paas-odoo-platform-odoo-conf, defaultMode: 0440 }
+        - name: data
+          emptyDir: {}
+        - name: lab-addon
+          configMap: { name: placeholder-replaced-by-with-lab-addon-items }

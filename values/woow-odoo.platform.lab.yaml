@@ -4,11 +4,14 @@ profile: platform
 replicas: 1                            # 首次安裝先 --set replicas=0 --set cron.replicas=0，跑完 jobs/platform-init.yaml 再升回 1
 upgradeGate:
   incremental: true
+  # 2026-11-23 .14→.31 一次跨 17 版、web 在 4 核小節點：cron 等待放寬到 1 小時（chart 預設 1800）；
+  # 每次 -u 的上限 timeoutSeconds 在 schema 最多 1200（預設值），超過會在套用前被擋。
+  waitTimeoutSeconds: 3600
 image:
   registry: ghcr.io
   repository: woowtech/paas-odoo-official
-  tag: "20261114.0636"
-  digest: "sha256:ad7c4a31d24530cfc9cf08e36ec520cb2a61532c51968c419c6153be98b3895b"   # 必填；init Job 預寫的 upgrade_done.digest 要等於這個
+  tag: "20261123.0105"   # 2026-11-23 跟正式站同版 18.0.2.0.31（前一版 20261114.0636@sha256:ad7c4a31d24530cfc9cf08e36ec520cb2a61532c51968c419c6153be98b3895b）
+  digest: "sha256:8d428f8391de0490dff37790570592a3017889a282c12d2fe7b39d2b74496d53"   # 必填；init Job 預寫的 upgrade_done.digest 要等於這個
   pullPolicy: IfNotPresent
 imagePullSecrets:
   - name: ghcr-registry

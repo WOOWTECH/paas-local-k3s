@@ -1,0 +1,5 @@
+# 2026-11-23：woowtechbot 上架本機 PaaS（使用者：平台／operator 升到正式站同版）。digest 照正式站
+# paas-app-bundle-cd main（平台 18.0.2.0.31、operator 20261120.1149）與服務 461 的 woowtechbot 映像。
+jcr-prod.woowtech.io/woow-paas-docker-local/paas-odoo-official:20261123.0105@sha256:8d428f8391de0490dff37790570592a3017889a282c12d2fe7b39d2b74496d53 ghcr.io/woowtech/paas-odoo-official:20261123.0105
+jcr-prod.woowtech.io/woow-paas-docker-local/paas-operator:20261120.1149@sha256:59a0c03aea805dedf40d3b481031478fd74c87ac1c40049ed46ad8912b2241db ghcr.io/woowtech/paas-operator:20261120.1149
+jcr-prod.woowtech.io/woow-paas-docker-local/woowtechbot:20261123.0428@sha256:4540b2bc890c828492ee7e976a3876476a7159f736131865255787c82c287433 ghcr.io/woowtech/woowtechbot:20261123.0428

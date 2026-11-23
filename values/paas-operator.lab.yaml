@@ -3,7 +3,9 @@
 replicaCount: 1                       # lab 一副本即可（prod 2）
 image:
   repository: ghcr.io/woowtech/paas-operator
-  tag: "mcp-waf-merged-fe2efc0b@sha256:488dab7d8273d3b946bd92c1e238f8a41307da5859f02ce3163f6e0e825073a3"
+  # 2026-11-23 跟正式站同版（paas-app-bundle-cd paas-operator/values-prod.yaml）：含 woowtechbot 一次性配對 API。
+  # 前一版（回滾用）：mcp-waf-merged-fe2efc0b@sha256:488dab7d8273d3b946bd92c1e238f8a41307da5859f02ce3163f6e0e825073a3
+  tag: "20261120.1149@sha256:59a0c03aea805dedf40d3b481031478fd74c87ac1c40049ed46ad8912b2241db"
   pullPolicy: IfNotPresent
 imagePullSecrets:
   - name: ghcr-registry                # 手動建：kubectl -n paas-system create secret docker-registry ghcr-registry --docker-server=ghcr.io ...
@@ -25,9 +27,9 @@ config:
   # - TUF：2026-11-15 實測該節點的 pod 網路不通（連 CoreDNS 10.42.0.2／10.43.0.10 都逾時，只有走節點 IP 的 API 通）
   #        → Odoo 租戶的 bootstrap 連不到自己的 PG 300 秒失敗。屬叢集既有問題，要有人上那台查 flannel／防火牆。
   # - 筆電：記憶體 requests 已超賣、有 OOM 史。
+  # TUF 2026-11-15 因 Pod 網路壞而避開；2026-11-23 測試 Pod 通過（DNS、跨節點 Service、外網）→ 開放給租戶（woowtechbot 只有 TUF 放得下）。
   tenantAvoidNodes:
     - woowtechcluster1-aorus-15p-xd
-    - woowtech-ai-coder-asus-tuf-gaming-f15-fx507zu4-fx507zu4
 cloudflare:
   enabled: true                        # 使用者決定沿用 Cloudflare Tunnel
   domain: "woowtech.io"                # 使用者決定直接用根域（與 prod/stg 同 zone 同層）

@@ -224,6 +224,26 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
   - 五頁全英文、無 console 錯誤。
   - 連 www.apporo.ai 的實測要先取得使用者同意，因為會動到 Apporo 正式站。
 
+## woowtechbot＋平台升到正式站同版（2026-11-23，overlay 18.0.1.0.24）
+- 使用者：「把同樣 mausbot 上架到本地的 k3s paas」。woowtechbot 的範本、驗證碼代寄、設定頁一次性配對都在平台 18.0.2.0.31，
+  配對還要 operator 的 `/api/releases/<ns>/<rel>/woowtechbot-pairing`。使用者決定：平台＋operator 升到正式站同版（先演練）、
+  放 TUF、方案縮成 2 vCPU／4 GB／20 GB、先用配對碼登入（本機平台沒有寄信伺服器）。
+- 複製：`tools/images-woowtechbot.txt`（平台 20261123.0105、operator 20261120.1149、woowtechbot 20261123.0428，digest 照正式站）；
+  `tools/mirror-charts.sh "paas-operator 0.1.37" "woowtechbot 0.1.3"`。GHCR package 都是私有。
+- overlay：`woowtechbot` 進 LAB_VISIBLE_SLUGS、方案 2/4/20（LAB_PLAN_SPECS）、市集最低規格（LAB_TEMPLATE_MIN_SPECS）、
+  chart 0.1.3＋映像釘選；.14→.31 上游換掉的 odoo／omnigent／9 個 mcp-* 版本用 TEMPLATE_VERSION_PINS 釘回本機已複製的版本
+  （pin 新增 `values` 欄位）。上游移除的 mcp-vk 在 -u 時被刪掉。
+- operator：chart 0.1.37＋image 20261120.1149；TUF 測試 Pod 通過（DNS、跨節點 Service、外網）後從 tenantAvoidNodes 拿掉。
+- 平台：先在 DB 副本跑 `jobs/platform-upgrade-rehearsal.yaml`（TUF、emptyDir、-u all，10 分鐘、0 錯誤），再正式 helm upgrade。
+  - 坑：k3s NetworkPolicy 新 Pod 有啟動空窗，映像已在節點上時 0.4 秒就連 PG 會被拒（Job 改成先等 PG）。
+  - 坑：`upgradeGate.timeoutSeconds` 的 schema 上限是 1200，超過會在套用前被擋。
+  - 坑：incremental 沒有 source 盤點紀錄時退回完整 -u all；cluster4 上 14.9 分鐘（DB 綁在 PG，速度跟 TUF 差不多），
+    平台停機 17:15–17:34。
+  - 回復點：DB 副本 `woow_lab_pre31`（PG pod 內）＋手動備份 `daily/2026-11-23T09:12:15Z`。
+- 實測：`tools/migrate/create_service_woowtechbot.py`（`bot.adminEmail` 要用點分鍵）開服務 43（工作區「woowtechbot 實測」、
+  ns paas-ws-lab-671d61b1、TUF）；公開網址健康檢查 200；設定頁配對碼 → 登入成功、第二次與取消的碼被拒、手機邀請可建可取消；
+  信箱登入回 502（平台記錄「寄件人未設定」，沒有寄出任何信）；瀏覽器看得到市集卡片與「登入與裝置配對」卡片。
+
 ## 已知問題與 lab 專屬調整（2026-11-15 實測）
 - **TUF 節點的 pod 網路不通**：該節點上的 pod 連 CoreDNS 都逾時（叢集既有問題，需上機查 flannel／防火牆）。
   operator `config.tenantAvoidNodes` 讓租戶 pod 避開 TUF 與筆電；平台本身用 post-renderer 的 nodeAffinity 避開。

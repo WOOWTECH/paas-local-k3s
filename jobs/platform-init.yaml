@@ -36,7 +36,7 @@ spec:
         - name: ghcr-registry
       containers:
         - name: init
-          image: ghcr.io/woowtech/paas-odoo-official:20261114.0636@sha256:ad7c4a31d24530cfc9cf08e36ec520cb2a61532c51968c419c6153be98b3895b
+          image: ghcr.io/woowtech/paas-odoo-official:20261123.0105@sha256:8d428f8391de0490dff37790570592a3017889a282c12d2fe7b39d2b74496d53
           securityContext:
             runAsUser: 100
             runAsGroup: 101
@@ -44,7 +44,7 @@ spec:
             - { name: PGHOST, value: paas-odoo-platform-postgresql }
             - { name: PGPORT, value: "5432" }
             - { name: DB, value: woow_lab }
-            - { name: IMAGE_DIGEST, value: "sha256:ad7c4a31d24530cfc9cf08e36ec520cb2a61532c51968c419c6153be98b3895b" }
+            - { name: IMAGE_DIGEST, value: "sha256:8d428f8391de0490dff37790570592a3017889a282c12d2fe7b39d2b74496d53" }
             - { name: OPERATOR_URL, value: "http://paas-operator.paas-system.svc.cluster.local" }
             - { name: PAAS_DOMAIN, value: "woowtech.io" }
             - { name: NS_PREFIX, value: "paas-ws-lab-" }
