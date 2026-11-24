@@ -244,6 +244,26 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
   ns paas-ws-lab-671d61b1、TUF）；公開網址健康檢查 200；設定頁配對碼 → 登入成功、第二次與取消的碼被拒、手機邀請可建可取消；
   信箱登入回 502（平台記錄「寄件人未設定」，沒有寄出任何信）；瀏覽器看得到市集卡片與「登入與裝置配對」卡片。
 
+## MCP 改釘 P3＋K8s MCP 下架（2026-11-24，overlay 18.0.1.0.25）
+- 使用者：「讓這些更新優化過的 mcp server 可以在本地的 k3s paas 上面部署啟用」。正式站 R2 18.0.2.0.33
+  （feat/woow-subscription-engine 7304aafd）把 8 個 MCP 範本改釘 woow-mcp-server main 4e8da3f0（P3；正式站服務 11-23 已換到這版），
+  chart 仍是 mcp-server 0.1.10、其他 values 與本機 .31 seed 相同（只差 image.tag）；同一版移除 K8s MCP 範本（11-24 封存下架）。
+- 複製：`tools/images-mcp-p3.txt`（在售 7 個，digest 照 .33 seed；GHCR 同 repo 已有舊層，7 顆約 6 分鐘），GHCR package 仍是私有。
+- overlay：`_MCP_LAB_TAGS` 改成 .33 的值（含隱藏的 mcp-opendesign，映像沒複製）、拿掉 mcp-k8s；`LAB_REMOVED_SLUGS` 加 mcp-k8s（停用＋隱藏）。
+  套用：`RESTART=0 tools/lab-overlay-update.sh`（helm rev 35；只有 -u 時用到的常數，網頁不重啟、沒有中斷）。
+  離線核對：.31 seed 經 lab_transform ＝ .33 seed 經 lab_transform（8 個 MCP＋odoo-manage 全等）。本機平台升到 .33 以後這段釘選可以拿掉。
+  本機 0 台服務引用 mcp-k8s ⇒ 之後升 .33 時 -u 刪範本不會被 cloud_service.template_id 的 ondelete=restrict 擋住。
+- 既有 7 台（工作區 lab-mcp，服務 18–24，全是 deployment_policy=template）：`tools/migrate/redeploy_services.py`（平台自己的
+  action_redeploy：範本新映像寫回服務、helm upgrade、PVC 保留、cron 就緒後核對映像）。MCP 的 config.json 是 write-only-if-absent，
+  密碼、權杖、後端連線都留著。7 台都回到 running、映像 digest 與 .33 相同、0 次重啟。
+- 實測（`tools/check_mcp_services.py`，走公開網址：/healthz、管理介面登入、/api/health、/api/tools、MCP initialize＋tools/list）：
+  換版前後逐項相同（Odoo 41 個工具且後端已連本機平台 Odoo、LiteLLM 40、Hermes 11、n8n 文件模式 7、EMQX／Nextcloud／Headscale 未設定時的
+  setup_status）；MCP Odoo 唯讀 search_records 查平台範本 33 筆。MCP Headscale 的管理員密碼不是共用測試密碼（登入 401 照實列出），
+  它也本來就沒有 /api/health（舊版也沒有）。
+- 全新部署：`tools/migrate/create_service.py`（新增 `WS_DESC`）在臨時工作區「MCP 新版實測 11-24」（id 21、ns paas-ws-lab-97e2e89b）
+  開 7 台（服務 44–50，都排到 TUF），每台約 1.5–3 分鐘到 running；用平台發的一次性管理員密碼登入、MCP 協定都過。
+  測完用 `tools/migrate/delete_services.py`（網站同一條刪除流程）刪掉：release／路由清掉、公開網址 404/530、PVC 標 7 天保留期。
+
 ## 已知問題與 lab 專屬調整（2026-11-15 實測）
 - **TUF 節點的 pod 網路不通**：該節點上的 pod 連 CoreDNS 都逾時（叢集既有問題，需上機查 flannel／防火牆）。
   operator `config.tenantAvoidNodes` 讓租戶 pod 避開 TUF 與筆電；平台本身用 post-renderer 的 nodeAffinity 避開。
@@ -308,3 +328,4 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - 2026-11-16 19:18 套上服務中心表單小修（bec8c8e＝main 5ff4ef2；RESTART=0，沒中斷）；更新腳本改成 INSTALL_EXTRAS=1 才 -i（已安裝模組 -i 會用 init 模式把 noupdate 設定蓋回初始值）。
 - 2026-11-17 刪 tenant-test／mailcow 隧道／Portainer×2／apollo／woowtech（後兩者先備份）；Odoo App 推播測試環境（3 台 Odoo＋推播中心）改由 PaaS 部署，網址不變、推播實測 7 支收下（overlay 18.0.1.0.18、charts/odoo-push-test、charts/fcm-central）。
 - 2026-11-17 09:10 裝小 Prometheus（cattle-monitoring-system，cAdvisor 經 API 轉送＋du／PVC 容量兩個小收集器），PaaS「即時資源使用量」23 個服務全部有數字。
+- 2026-11-24 MCP 改釘 P3（woow-mcp-server 4e8da3f0，照正式站 R2 18.0.2.0.33）＋K8s MCP 下架：overlay 18.0.1.0.25（RESTART=0，沒中斷）；既有 7 台走平台重新部署換版、換版前後實測相同；全新部署 7 台實測通過後刪除。

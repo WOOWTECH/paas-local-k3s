@@ -1,6 +1,7 @@
 # odoo shell：用平台自己的建立流程（service_ops.plan_create / write_create，跟網站同一條）開一個服務，
 # 同一個交易裡把管理員 helm_values（OVERRIDES_JSON）深合併進去。工作區不存在就建（擁有者 admin）。
-#   env: WS_NAME, SVC_NAME, TEMPLATE_SLUG, OVERRIDES_JSON（可省）, DRY=1（預設，只算不寫）, OUT_SECRET（一次性憑證寫到這個檔，可省）
+#   env: WS_NAME, SVC_NAME, TEMPLATE_SLUG, OVERRIDES_JSON（可省）, DRY=1（預設，只算不寫）, OUT_SECRET（一次性憑證寫到這個檔，可省）,
+#        WS_DESC（工作區不存在時新建用的說明，可省）
 # 印出：workspace id／ws_hash、namespace、service id、release。從 pi5 的 create_service_pi5.py 一般化而來（2026-11-17）。
 import json, os
 from odoo.addons.woow_paas_platform.services import service_ops
@@ -28,7 +29,7 @@ Workspace = uenv["woow_paas_platform.workspace"]
 ws = Workspace.search([("name", "=", WS_NAME)], limit=1)
 if not ws:
     ws = Workspace.create({"name": WS_NAME, "owner_id": admin.id,
-                          "description": "Odoo App 推播測試環境，從本機 k3s 手架的部署搬進 PaaS 管理（2026-11-17）"})
+                          "description": os.environ.get("WS_DESC") or "Odoo App 推播測試環境，從本機 k3s 手架的部署搬進 PaaS 管理（2026-11-17）"})
 print("workspace", ws.id, ws.ws_hash)
 # 一般建立流程拒絕 hidden 範本（#336）。這兩個本機範本刻意藏起來不讓租戶開，所以只在這個交易裡暫時打開、
 # commit 前再藏回去：其他連線看不到中間狀態。

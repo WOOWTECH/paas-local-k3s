@@ -1,6 +1,6 @@
 {
     "name": "Woow PaaS Platform - Lab overlay",
-    "version": "18.0.1.0.24",
+    "version": "18.0.1.0.25",
     "category": "WOOW",
     "summary": "本機 k3s 複本的差異層：隱藏 Security Access／Home Connect、Cloudflare Tunnel WebGUI 範本、範本改指 ghcr.io、local-path、內部使用不收費（隱藏點數／儲值／帳單）",
     "author": "Woow",

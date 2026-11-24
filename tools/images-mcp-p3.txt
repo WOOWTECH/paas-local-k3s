@@ -1,0 +1,9 @@
+# 2026-11-24：MCP 改釘 P3（woow-mcp-server main 4e8da3f0）——digest 照正式站 R2 18.0.2.0.33 seed（feat/woow-subscription-engine 7304aafd）
+# 只複製在售的 7 個；隱藏的 mcp-opendesign 不複製（正式站也隱藏，功能內建在 Open Design）；mcp-k8s 已封存下架（11-24）。
+jcr-prod.woowtech.io/woow-paas-docker-local/hermes-mcp-admin:4e8da3f06861816fae8bf35773dea591fad54db8@sha256:0044fde1f1e2be87daa7f5d9dbc6e298addb8f93ec8f7fd41b74ab610f14e678 ghcr.io/woowtech/hermes-mcp-admin:4e8da3f06861816fae8bf35773dea591fad54db8
+jcr-prod.woowtech.io/woow-paas-docker-local/odoo-mcp-admin:4e8da3f06861816fae8bf35773dea591fad54db8@sha256:511242c5be5b2e788d728a1a5bb5ea7a012a96758f40b39de010141f8aedd748 ghcr.io/woowtech/odoo-mcp-admin:4e8da3f06861816fae8bf35773dea591fad54db8
+jcr-prod.woowtech.io/woow-paas-docker-local/n8n-mcp-admin:4e8da3f06861816fae8bf35773dea591fad54db8@sha256:5c78273f8f1551c183285f744b102e07a9bc4c34dee83a82096dd640db071076 ghcr.io/woowtech/n8n-mcp-admin:4e8da3f06861816fae8bf35773dea591fad54db8
+jcr-prod.woowtech.io/woow-paas-docker-local/litellm-mcp-admin:4e8da3f06861816fae8bf35773dea591fad54db8@sha256:6052fcb2501e67bb0362e2aa50615928b3f074040c67d9500bc46bc24099f9f1 ghcr.io/woowtech/litellm-mcp-admin:4e8da3f06861816fae8bf35773dea591fad54db8
+jcr-prod.woowtech.io/woow-paas-docker-local/nextcloud-mcp-admin:4e8da3f06861816fae8bf35773dea591fad54db8@sha256:7adf3ce4d15f91724d0c81f436d720ee3791a88644d592bfd7f844cbd5e4b11e ghcr.io/woowtech/nextcloud-mcp-admin:4e8da3f06861816fae8bf35773dea591fad54db8
+jcr-prod.woowtech.io/woow-paas-docker-local/emqx-mcp-admin:4e8da3f06861816fae8bf35773dea591fad54db8@sha256:67cf042906d4741b2114172e2ecf9b149768da0d8f7f2e81850f3242ef09c74e ghcr.io/woowtech/emqx-mcp-admin:4e8da3f06861816fae8bf35773dea591fad54db8
+jcr-prod.woowtech.io/woow-paas-docker-local/headscale-mcp-admin:4e8da3f06861816fae8bf35773dea591fad54db8@sha256:f0274fee1430bd8f3856422afd7c50930caeeb8bf400f771c4205ae2ecb36690 ghcr.io/woowtech/headscale-mcp-admin:4e8da3f06861816fae8bf35773dea591fad54db8

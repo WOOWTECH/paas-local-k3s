@@ -30,7 +30,7 @@ LAB_VISIBLE_SLUGS = ("postgresql", "redis", "n8n", "odoo", "litellm", "emqx",
                      "pi-agent", "hermes-agent", "open-design", "omnigent",
                      # 第三批（使用者 2026-11-15 夜：「去搬剩下還沒搬過去的」）：正式站對外開放的其餘 13 個。
                      # 正式站也隱藏的 6 個（ha-paas、ha-full-apporo、mcp-k8s、mcp-odoo-manage、mcp-opendesign、mcp-vk）維持隱藏。
-                     # haos 已移除（見下方 LAB_REMOVED_SLUGS）。
+                     # haos、mcp-k8s 已移除（見下方 LAB_REMOVED_SLUGS）；mcp-vk 上游 11-14 已刪範本。
                      "code-server", "ha-full", "headscale", "nextcloud", "tailscale",
                      "mcp-emqx", "mcp-headscale", "mcp-hermes", "mcp-litellm", "mcp-n8n", "mcp-nextcloud", "mcp-odoo",
                      # 本機專用（2026-11-17，使用者：「cf web gui PaaS 版，工作區裡的服務都能透過它開外網」）
@@ -45,7 +45,10 @@ LAB_VISIBLE_SLUGS = ("postgresql", "redis", "n8n", "odoo", "litellm", "emqx",
 # haos：使用者 2026-11-16「這個去移除，目前不需要」。之前跑不起來的原因：HAOS 映像是 32GiB 虛擬磁碟，CDI 匯入要求
 # 節點剩餘空間 ≥ 32GiB，4GB 小節點的磁碟最多只剩 31GiB（2026-11-15 實測）。殘留的 DataVolume 已刪。
 # 要加回：從這裡拿掉、把 "haos" 放回 LAB_VISIBLE_SLUGS、tools/images-rest.txt／mirror-charts.sh 補回，跑 tools/lab-overlay-update.sh。
-LAB_REMOVED_SLUGS = ("haos",)
+# mcp-k8s：使用者 2026-11-24 決定 K8s MCP 封存下架、之後不再維護（woow-mcp-server #162、平台 #2541／#2542 已合併，
+# 封存 tag archive/*k8s*-20261124）。上游 18.0.2.0.33 起 seed 沒有這個範本；本機平台還在 .31，先停用。本機 0 台服務引用它，
+# 所以之後升 .33 時 -u 刪範本不會被 cloud_service.template_id 的 ondelete=restrict 擋住。
+LAB_REMOVED_SLUGS = ("haos", "mcp-k8s")
 
 # chart 位置例外：GHCR 上 charts/omnigent 已是別的專案的「公開」package，WOOW 的 omnigent chart 推進去會變公開
 # → 改放私有的 paas-charts/omnigent（tools/mirror-charts.sh 同步）。
@@ -173,16 +176,20 @@ TEMPLATE_VALUE_FIXES = {
 # 先釘回本機已複製的版本（值取自升級前的本機範本）；要跟上正式站時把映像／chart 複製過來再拿掉。woowtechbot 釘最新修正版
 # （正式站範本仍是 chart 0.1.2／20261121.0756，服務 461 已跑 0.1.3／20261123.0428）。
 #   image_tag：寫進 values.image.tag；values：其他要釘的值（deep-set）。
+# 2026-11-24 使用者：「讓這些更新優化過的 mcp server 可以在本地的 k3s paas 上面部署啟用」→ MCP 改釘 P3
+# （woow-mcp-server main 4e8da3f0，正式站服務 11-23 已換到這版）：值照正式站 R2 18.0.2.0.33 seed
+# （feat/woow-subscription-engine 7304aafd），chart 仍是 mcp-server 0.1.10、其他 values 與 .31 seed 相同（只差 image.tag）。
+# 在售 7 個的映像已複製到 GHCR（tools/images-mcp-p3.txt）；mcp-opendesign 正式站也隱藏，照 seed 釘但沒複製映像。
+# mcp-k8s 11-24 封存下架（見 LAB_REMOVED_SLUGS），不再釘。本機平台升到 .33 以後這 8 筆與 seed 相同，可以整段拿掉。
 _MCP_LAB_TAGS = {
-    "mcp-emqx": "443e95a942c7ef0484d963631382aab94d0e0567@sha256:78f45cbca960b4fcb2bc826244811a3fd78e7131fe7a0d680e03cb9905e4eb00",
-    "mcp-headscale": "443e95a942c7ef0484d963631382aab94d0e0567@sha256:173a9c4bb16fa4b06ba8d74ce9c10360dd812f81cd077da3a57796766684a689",
-    "mcp-hermes": "443e95a942c7ef0484d963631382aab94d0e0567@sha256:21f9d8a91133ab6f5169e4bc5b48989868da8345b992da5ca8ef18c68b2b3c60",
-    "mcp-k8s": "443e95a942c7ef0484d963631382aab94d0e0567@sha256:9da345d79632b985feb339d2cfa0c54f2d0366270c7d482ab4ca75220ddb842e",
-    "mcp-litellm": "443e95a942c7ef0484d963631382aab94d0e0567@sha256:43d824bb6ca3f7c151dc08aafcbdb18e2762968b0b0705f15d20b034433a8d26",
-    "mcp-n8n": "443e95a942c7ef0484d963631382aab94d0e0567@sha256:93d6599a2e8a644bfe6d28181a8c2449e80fe93a8c70dc9aab4c8aca97e9154c",
-    "mcp-nextcloud": "443e95a942c7ef0484d963631382aab94d0e0567@sha256:cac243527c8854744953963bfa5f21eaa967a2fa37c171aeb4791cbafffd139c",
-    "mcp-odoo": "443e95a942c7ef0484d963631382aab94d0e0567@sha256:aed35228dc8866439f3952bc7f425411ffd6b6f50a8231b09ece2d250c8ca2b2",
-    "mcp-opendesign": "443e95a942c7ef0484d963631382aab94d0e0567@sha256:51f90d8d393645c2aa8db5d4f9ce0c74501c1ad6e5e119f7f81308d5ef20e174",
+    "mcp-emqx": "4e8da3f06861816fae8bf35773dea591fad54db8@sha256:67cf042906d4741b2114172e2ecf9b149768da0d8f7f2e81850f3242ef09c74e",
+    "mcp-headscale": "4e8da3f06861816fae8bf35773dea591fad54db8@sha256:f0274fee1430bd8f3856422afd7c50930caeeb8bf400f771c4205ae2ecb36690",
+    "mcp-hermes": "4e8da3f06861816fae8bf35773dea591fad54db8@sha256:0044fde1f1e2be87daa7f5d9dbc6e298addb8f93ec8f7fd41b74ab610f14e678",
+    "mcp-litellm": "4e8da3f06861816fae8bf35773dea591fad54db8@sha256:6052fcb2501e67bb0362e2aa50615928b3f074040c67d9500bc46bc24099f9f1",
+    "mcp-n8n": "4e8da3f06861816fae8bf35773dea591fad54db8@sha256:5c78273f8f1551c183285f744b102e07a9bc4c34dee83a82096dd640db071076",
+    "mcp-nextcloud": "4e8da3f06861816fae8bf35773dea591fad54db8@sha256:7adf3ce4d15f91724d0c81f436d720ee3791a88644d592bfd7f844cbd5e4b11e",
+    "mcp-odoo": "4e8da3f06861816fae8bf35773dea591fad54db8@sha256:511242c5be5b2e788d728a1a5bb5ea7a012a96758f40b39de010141f8aedd748",
+    "mcp-opendesign": "4e8da3f06861816fae8bf35773dea591fad54db8@sha256:b23e2f1532f95189271eeecf39288ac997fe0f7615cb8181c4ef86ab0b8dc711",
 }
 TEMPLATE_VERSION_PINS = {
     "code-server": {"chart_version": "0.1.12",
