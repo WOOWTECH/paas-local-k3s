@@ -329,3 +329,10 @@ Security Access／Home Connect 隱藏（overlay addon）。研究報告：https:
 - 2026-11-17 刪 tenant-test／mailcow 隧道／Portainer×2／apollo／woowtech（後兩者先備份）；Odoo App 推播測試環境（3 台 Odoo＋推播中心）改由 PaaS 部署，網址不變、推播實測 7 支收下（overlay 18.0.1.0.18、charts/odoo-push-test、charts/fcm-central）。
 - 2026-11-17 09:10 裝小 Prometheus（cattle-monitoring-system，cAdvisor 經 API 轉送＋du／PVC 容量兩個小收集器），PaaS「即時資源使用量」23 個服務全部有數字。
 - 2026-11-24 MCP 改釘 P3（woow-mcp-server 4e8da3f0，照正式站 R2 18.0.2.0.33）＋K8s MCP 下架：overlay 18.0.1.0.25（RESTART=0，沒中斷）；既有 7 台走平台重新部署換版、換版前後實測相同；全新部署 7 台實測通過後刪除。
+
+## 2026-11-26 woowtechbot 新建服務範本
+
+- overlay 18.0.1.0.26 將 woowtechbot 的 `TEMPLATE_VERSION_PINS` 更新到已核可的 `20261126.0110@sha256:3b05032ac5201d3cc04abdc05febafcaf6136179b0468d9aeaa8cad6c851d19a`，chart 維持 0.1.3。
+- 來源是 paas-odoo-ci #778 人工簽核、promotion run 49276；GHCR 與 JCR 的正式 tag 已核對同 digest。正式站 461 與 lab 43 已完成該映像驗收。
+- 新建服務直接使用無上游廣告、未內建 Hermes 的正式映像；月／年方案都從同一商品範本取值。既有 lab 43 的 per-service pin 保留。
+- `tools/images-woowtechbot.txt` 同步更新來源與目的 tag，重建或重跑 mirror 時不會把新版內容寫到舊 tag。平台／operator 映像、方案規格與價格不變。

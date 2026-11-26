@@ -173,8 +173,8 @@ TEMPLATE_VALUE_FIXES = {
 # chart 0.1.12 已合併進 woow-paas-charts main（Pi、Claude、Codex 共用 skills／MCP），正式站範本仍是 0.1.9／20261018.0107。
 # 映像與 chart 已複製到 GHCR（tools/images-code-server.txt、tools/mirror-charts.sh "code-server 0.1.12"）。
 # 2026-11-23 平台 18.0.2.0.14 → 18.0.2.0.31：上游 seed 換了 odoo／omnigent／9 個 mcp-* 的 chart 或映像，新版沒有複製到 GHCR，
-# 先釘回本機已複製的版本（值取自升級前的本機範本）；要跟上正式站時把映像／chart 複製過來再拿掉。woowtechbot 釘最新修正版
-# （正式站範本仍是 chart 0.1.2／20261121.0756，服務 461 已跑 0.1.3／20261123.0428）。
+# 先釘回本機已複製的版本（值取自升級前的本機範本）；要跟上正式站時把映像／chart 複製過來再拿掉。woowtechbot 釘已核可版本
+# （paas-odoo-ci#778／promotion49276；正式站 461 與 lab 43 已驗收；GHCR 與 JCR digest 相同）。
 #   image_tag：寫進 values.image.tag；values：其他要釘的值（deep-set）。
 # 2026-11-24 使用者：「讓這些更新優化過的 mcp server 可以在本地的 k3s paas 上面部署啟用」→ MCP 改釘 P3
 # （woow-mcp-server main 4e8da3f0，正式站服務 11-23 已換到這版）：值照正式站 R2 18.0.2.0.33 seed
@@ -201,7 +201,7 @@ TEMPLATE_VERSION_PINS = {
                  "image_tag": "20261111.0647@sha256:c6b6cab6478f06f6a36e3731cbd619d8d1bea8ece201da6e97c9dea97c38d72e",
                  "values": {"runner": {"image": "ghcr.io/woowtech/omnigent-host:20261111.0647@sha256:701101d009847e7dfb2c607314d42a38d171c9c44732c0e2a624177e02ce23bb"}}},
     "woowtechbot": {"chart_version": "0.1.3",
-                    "image_tag": "20261123.0428@sha256:4540b2bc890c828492ee7e976a3876476a7159f736131865255787c82c287433"},
+                    "image_tag": "20261126.0110@sha256:3b05032ac5201d3cc04abdc05febafcaf6136179b0468d9aeaa8cad6c851d19a"},
     **{slug: {"chart_version": "0.1.10", "image_tag": tag} for slug, tag in _MCP_LAB_TAGS.items()},
 }
 
