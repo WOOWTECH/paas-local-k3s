@@ -2,4 +2,4 @@
 # 平台／operator 沿用已部署版本；2026-11-26 woowtechbot 對齊 #778 核可版本（正式站 461／lab 43 已驗收）。
 jcr-prod.woowtech.io/woow-paas-docker-local/paas-odoo-official:20261123.0105@sha256:8d428f8391de0490dff37790570592a3017889a282c12d2fe7b39d2b74496d53 ghcr.io/woowtech/paas-odoo-official:20261123.0105
 jcr-prod.woowtech.io/woow-paas-docker-local/paas-operator:20261120.1149@sha256:59a0c03aea805dedf40d3b481031478fd74c87ac1c40049ed46ad8912b2241db ghcr.io/woowtech/paas-operator:20261120.1149
-jcr-prod.woowtech.io/woow-paas-docker-local/woowtechbot:20261126.0110@sha256:3b05032ac5201d3cc04abdc05febafcaf6136179b0468d9aeaa8cad6c851d19a ghcr.io/woowtech/woowtechbot:20261126.0110
+jcr-prod.woowtech.io/woow-paas-docker-local/woowtechbot:20261126.0431@sha256:11214e6bc8b27b774a83603180efdefb2989189af1efb9f753cce16aa6b5b1d3 ghcr.io/woowtech/woowtechbot:20261126.0431

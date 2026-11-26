@@ -201,7 +201,7 @@ TEMPLATE_VERSION_PINS = {
                  "image_tag": "20261111.0647@sha256:c6b6cab6478f06f6a36e3731cbd619d8d1bea8ece201da6e97c9dea97c38d72e",
                  "values": {"runner": {"image": "ghcr.io/woowtech/omnigent-host:20261111.0647@sha256:701101d009847e7dfb2c607314d42a38d171c9c44732c0e2a624177e02ce23bb"}}},
     "woowtechbot": {"chart_version": "0.1.3",
-                    "image_tag": "20261126.0110@sha256:3b05032ac5201d3cc04abdc05febafcaf6136179b0468d9aeaa8cad6c851d19a"},
+                    "image_tag": "20261126.0431@sha256:11214e6bc8b27b774a83603180efdefb2989189af1efb9f753cce16aa6b5b1d3"},
     **{slug: {"chart_version": "0.1.10", "image_tag": tag} for slug, tag in _MCP_LAB_TAGS.items()},
 }
 
